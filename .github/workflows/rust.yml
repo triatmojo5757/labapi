@@ -13,8 +13,12 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+
     - name: Add Rust to PATH
       run: echo "/home/ecs-user/.cargo/bin" >> $GITHUB_PATH
+
+    - name: Copy env file
+      run: cp /opt/API/labapi.env $GITHUB_WORKSPACE/.env
 
     - name: Build
       run: cargo build --release --verbose
