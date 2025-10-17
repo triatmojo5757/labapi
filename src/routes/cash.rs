@@ -17,6 +17,7 @@ pub struct DepositReq {
     pub account_id: Uuid,
     pub amount: f64,
     pub description: Option<String>,
+    pub pin: String,
 }
 
 /// Request untuk tarik tunai (wajib PIN)
@@ -45,8 +46,15 @@ pub async fn cash_deposit(
     if req.amount <= 0.0 {
         return Err(ApiError::BadRequest("amount must be > 0".into()).into());
     }
+    if req.pin.len() != 6 || !req.pin.chars().all(|c| c.is_ascii_digit()) {
+        return Err(ApiError::BadRequest("pin must be 6 digits".into()).into());
+    }
+
     let user_id = Uuid::parse_str(&claims.sub)
         .map_err(|_| ApiError::Unauthorized("bad subject".into()))?;
+
+    // ✅ Validasi PIN di Rust sebelum panggil DB
+    verify_account_pin(&state, user_id, req.account_id, &req.pin).await?;
 
     let row = sqlx::query(
         r#"
@@ -67,7 +75,9 @@ pub async fn cash_deposit(
         account_id: row.try_get("account_id").map_err(ApiError::from)?,
         balance_after: row.try_get::<f64,_>("balance_after").map_err(ApiError::from)?,
         trx_time: row.try_get("trx_time").map_err(ApiError::from)?,
-        description: row.try_get::<Option<String>,_>("description").map_err(ApiError::from)?
+        description: row
+            .try_get::<Option<String>, _>("description")
+            .map_err(ApiError::from)?
             .unwrap_or_default(),
     };
 

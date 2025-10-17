@@ -11,6 +11,8 @@ pub enum ApiError {
     Forbidden(String),
     #[error("internal")]
     Internal(String),
+    #[error("{0}")]
+    NotFound(String),
 }
 
 impl From<sqlx::Error> for ApiError {
@@ -23,6 +25,7 @@ impl From<ApiError> for (StatusCode, String) {
             ApiError::BadRequest(m) => (StatusCode::BAD_REQUEST, m),
             ApiError::Unauthorized(m) => (StatusCode::UNAUTHORIZED, m),
             ApiError::Forbidden(m) => (StatusCode::FORBIDDEN, m),
+            ApiError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
             ApiError::Internal(m) => (StatusCode::INTERNAL_SERVER_ERROR, m),
         }
     }

@@ -85,6 +85,8 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .nest("/auth", auth_routes)
         .route("/health", get(|| async { "ok" }))
+        .route("/journals/:id", get(routes::journals::get_journal_public))
+        .route("/journals/public", get(routes::journals::list_journals_public))
         .merge(protected_routes)
         .merge(admin_routes)
         .layer(cors)
