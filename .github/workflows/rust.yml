@@ -25,3 +25,6 @@ jobs:
 
     - name: Run tests
       run: cargo test --verbose
+
+    - name: Deploy
+      run: /opt/API/labapi/deploy.sh
