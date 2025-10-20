@@ -1,5 +1,5 @@
 use axum::{extract::{Path, State}, Extension, Json};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize}; // <-- import Serialize juga
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -11,9 +11,12 @@ use crate::{
 };
 
 #[derive(Deserialize)]
-pub struct AccountOpenReq { pub pin: String, pub initial_balance: Option<f64> }
+pub struct AccountOpenReq {
+    pub pin: String,
+    pub initial_balance: Option<f64>,
+}
 
-#[derive(serde::Serialize)]
+#[derive(Serialize)]
 pub struct AccountRes {
     pub id: Uuid,
     pub account_no: String,
@@ -22,11 +25,27 @@ pub struct AccountRes {
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(serde::Serialize)]
-pub struct AccountsListRes { pub items: Vec<AccountRes> }
+#[derive(Serialize)]
+pub struct AccountsListRes {
+    pub items: Vec<AccountRes>
+}
 
-#[derive(serde::Deserialize)]
-pub struct UpdatePinReq { pub new_pin: String }
+#[derive(Deserialize)]
+pub struct UpdatePinReq {
+    pub new_pin: String
+}
+
+#[derive(Deserialize)]
+pub struct VerifyAccountReq {
+    pub account_no: String,
+}
+
+#[derive(Serialize)]
+pub struct VerifyAccountRes {
+    pub account_no: String,
+    pub owner_name: Option<String>,
+    pub status: String,
+}
 
 pub async fn open_account(
     State(state): State<SharedState>,
@@ -36,7 +55,8 @@ pub async fn open_account(
     if req.pin.len() != 6 || !req.pin.chars().all(|c| c.is_ascii_digit()) {
         return Err(ApiError::BadRequest("pin must be 6 digits".into()).into());
     }
-    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| ApiError::Unauthorized("bad subject".into()))?;
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| ApiError::Unauthorized("bad subject".into()))?;
 
     let row = sqlx::query("SELECT * FROM lab_fun_open_account($1,$2,$3)")
         .bind(user_id)
@@ -82,7 +102,8 @@ pub async fn update_account_pin(
     if req.new_pin.len() != 6 || !req.new_pin.chars().all(|c| c.is_ascii_digit()) {
         return Err(ApiError::BadRequest("new_pin must be 6 digits".into()).into());
     }
-    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| ApiError::Unauthorized("bad subject".into()))?;
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| ApiError::Unauthorized("bad subject".into()))?;
 
     let ok = sqlx::query_scalar!(
         r#"SELECT lab_fun_update_account_pin($1,$2,$3) AS ok"#,
@@ -105,7 +126,8 @@ pub async fn list_accounts(
     State(state): State<SharedState>,
     Extension(claims): Extension<Claims>,
 ) -> ApiResult<Json<AccountsListRes>> {
-    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| ApiError::Unauthorized("bad subject".into()))?;
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| ApiError::Unauthorized("bad subject".into()))?;
 
     let rows = sqlx::query(
         r#"SELECT id, account_no, saldo::float8 AS saldo, created_at, updated_at
@@ -128,4 +150,34 @@ pub async fn list_accounts(
     }
 
     Ok(Json(AccountsListRes { items }))
+}
+
+pub async fn verify_account(
+    State(state): State<SharedState>,
+    Json(req): Json<VerifyAccountReq>,
+) -> ApiResult<Json<VerifyAccountRes>> {
+    let row = sqlx::query(
+        r#"
+        SELECT account_no, owner_name, status
+        FROM lab_fun_verify_account($1)
+        "#
+    )
+    .bind(&req.account_no)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(ApiError::from)?;
+
+    let Some(row) = row else {
+        return Ok(Json(VerifyAccountRes {
+            account_no: req.account_no,
+            owner_name: None,
+            status: "not_found".to_string(),
+        }));
+    };
+
+    Ok(Json(VerifyAccountRes {
+        account_no: row.try_get("account_no").unwrap_or_default(),
+        owner_name: row.try_get::<Option<String>, _>("owner_name").unwrap_or(None),
+        status: row.try_get::<String, _>("status").unwrap_or_else(|_| "unknown".to_string()),
+    }))
 }

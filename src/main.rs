@@ -43,10 +43,7 @@ async fn main() -> anyhow::Result<()> {
     let db_url = std::env::var("DATABASE_URL")?;
     let jwt_secret = std::env::var("JWT_SECRET")?;
 
-    let pool = PgPoolOptions::new()
-        .max_connections(10)
-        .connect(&db_url)
-        .await?;
+    let pool = PgPoolOptions::new().max_connections(10).connect(&db_url).await?;
 
     let state = Arc::new(AppState {
         pool,
@@ -58,39 +55,46 @@ async fn main() -> anyhow::Result<()> {
         .allow_headers(Any)
         .allow_methods(Any);
 
+    // === Public (tanpa Authorization) ===
+    let public = Router::new()
+        .route("/health", get(|| async { "ok" }))
+        .route("/journals/:id", get(routes::journals::get_journal_public))
+        .route("/journals/public", get(routes::journals::list_journals_public))
+        .route("/accounts/verify", post(routes::accounts::verify_account)); 
+
+    // === Auth endpoints (juga public) ===
     let auth_routes = Router::new()
         .route("/register", post(routes::auth::register))
         .route("/login", post(routes::auth::login))
         .route("/refresh", post(routes::auth::refresh));
 
-    let protected_routes = Router::new()
+    // === Protected (wajib Authorization) ===
+    let protected = Router::new()
         .route("/me", get(me))
         .route("/auth/logout/:token_id", post(routes::auth::logout))
         .route("/profile", get(routes::profile::get_profile).put(routes::profile::upsert_profile))
         .route("/accounts/open", post(routes::accounts::open_account))
         .route("/accounts", get(routes::accounts::list_accounts))
-        .route("/accounts/:id/pin", patch(routes::accounts::update_account_pin))
+        .route("/accounts/:account_id/pin", patch(routes::accounts::update_account_pin)) 
         .route("/journals", post(routes::journals::post_journal).get(routes::journals::list_journals))
         .route("/transfers", post(routes::transfers::transfer))
         .route("/accounts/deposit", post(routes::cash::cash_deposit))
         .route("/accounts/withdraw", post(routes::cash::cash_withdraw))
         .layer(from_fn_with_state(state.clone(), middleware::auth::auth_middleware));
 
-    let admin_routes = Router::new()
-        .route("/admin/audit_logs", get(routes::admin::list_audit_logs))
+    // === Admin (RBAC + Auth) ===
+    let admin = Router::new()
         .route("/admin/audit-logs", get(routes::admin::list_audit_logs))
         .layer(from_fn_with_state(state.clone(), middleware::rbac::rbac_middleware))
         .layer(from_fn_with_state(state.clone(), middleware::auth::auth_middleware));
 
     let app = Router::new()
         .nest("/auth", auth_routes)
-        .route("/health", get(|| async { "ok" }))
-        .route("/journals/:id", get(routes::journals::get_journal_public))
-        .route("/journals/public", get(routes::journals::list_journals_public))
-        .merge(protected_routes)
-        .merge(admin_routes)
+        .merge(public)
+        .merge(protected)
+        .merge(admin)
         .layer(cors)
-        .with_state(state.clone()); 
+        .with_state(state.clone());
 
     let listener = TcpListener::bind("0.0.0.0:8080").await?;
     info!("listening on 0.0.0.0:8080");
@@ -98,12 +102,7 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-// kecil: /me tetap di main biar simple
-async fn me(
-    axum::Extension(claims): axum::Extension<models::Claims>,
-) -> axum::Json<serde_json::Value> {
-    axum::Json(serde_json::json!({
-        "user_id": claims.sub,
-        "role": claims.role
-    }))
+// /me sederhana (protected via middleware)
+async fn me(axum::Extension(claims): axum::Extension<models::Claims>) -> axum::Json<serde_json::Value> {
+    axum::Json(serde_json::json!({ "user_id": claims.sub, "role": claims.role }))
 }
