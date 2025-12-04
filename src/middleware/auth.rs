@@ -23,6 +23,7 @@ pub async fn auth_middleware(
         || path.starts_with("/auth/login")
         || path.starts_with("/auth/refresh")
         || path.starts_with("/health")
+         || path.starts_with("/auth/password_reset")
     {
         return Ok(next.run(req).await);
     }

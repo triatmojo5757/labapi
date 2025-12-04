@@ -66,7 +66,8 @@ async fn main() -> anyhow::Result<()> {
     let auth_routes = Router::new()
         .route("/register", post(routes::auth::register))
         .route("/login", post(routes::auth::login))
-        .route("/refresh", post(routes::auth::refresh));
+        .route("/refresh", post(routes::auth::refresh))
+        .route("/password_reset", post(routes::auth::password_reset));
 
     // === Protected (wajib Authorization) ===
     let protected = Router::new()
@@ -80,6 +81,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/transfers", post(routes::transfers::transfer))
         .route("/accounts/deposit", post(routes::cash::cash_deposit))
         .route("/accounts/withdraw", post(routes::cash::cash_withdraw))
+        .route("/accounts/check_pin", post(routes::accounts::check_pin))
         .layer(from_fn_with_state(state.clone(), middleware::auth::auth_middleware));
 
     // === Admin (RBAC + Auth) ===

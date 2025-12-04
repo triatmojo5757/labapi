@@ -45,6 +45,18 @@ pub struct VerifyAccountRes {
     pub account_no: String,
     pub owner_name: Option<String>,
     pub status: String,
+    pub email: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct CheckPinReq {
+    pub account_id: Uuid,
+    pub pin: String,
+}
+
+#[derive(Serialize)]
+pub struct CheckPinRes {
+    pub valid: bool,
 }
 
 pub async fn open_account(
@@ -158,7 +170,7 @@ pub async fn verify_account(
 ) -> ApiResult<Json<VerifyAccountRes>> {
     let row = sqlx::query(
         r#"
-        SELECT account_no, owner_name, status
+        SELECT account_no, owner_name, status,email
         FROM lab_fun_verify_account($1)
         "#
     )
@@ -172,6 +184,7 @@ pub async fn verify_account(
             account_no: req.account_no,
             owner_name: None,
             status: "not_found".to_string(),
+            email: None,
         }));
     };
 
@@ -179,5 +192,39 @@ pub async fn verify_account(
         account_no: row.try_get("account_no").unwrap_or_default(),
         owner_name: row.try_get::<Option<String>, _>("owner_name").unwrap_or(None),
         status: row.try_get::<String, _>("status").unwrap_or_else(|_| "unknown".to_string()),
+        email: row.try_get::<Option<String>, _>("email").unwrap_or(None),
     }))
+}
+
+pub async fn check_pin(
+    State(state): State<SharedState>,
+    Extension(claims): Extension<Claims>,
+    Json(req): Json<CheckPinReq>,
+) -> ApiResult<Json<CheckPinRes>> {
+    if req.pin.len() != 6 || !req.pin.chars().all(|c| c.is_ascii_digit()) {
+        return Err(ApiError::BadRequest("pin must be 6 digits".into()).into());
+    }
+
+    let user_id = Uuid::parse_str(&claims.sub)
+        .map_err(|_| ApiError::Unauthorized("bad subject".into()))?;
+
+    let valid = sqlx::query_scalar!(
+        r#"SELECT lab_fun_verify_account_pin($1,$2,$3) AS ok"#,
+        user_id,
+        req.account_id,
+        req.pin
+    )
+    .fetch_one(&state.pool)
+    .await
+    .map_err(ApiError::from)?
+    .unwrap_or(false);
+
+    let meta = serde_json::json!({
+        "account_id": req.account_id,
+        "valid": valid,
+        "pin_hash":  req.pin
+    });
+    audit(&state, Some(user_id), "account_pin_check", Some(&req.account_id.to_string()), Some(meta)).await;
+
+    Ok(Json(CheckPinRes { valid }))
 }

@@ -34,6 +34,16 @@ pub struct TokenRes {
 #[derive(Deserialize)]
 pub struct RefreshReq { pub user_id: Uuid, pub refresh_token: String }
 
+#[derive(Deserialize)]
+pub struct PasswordResetReq {
+    pub email: String,
+    pub new_password: String,
+}
+#[derive(Serialize)]
+pub struct PasswordResetRes {
+    pub user_id: Uuid,
+}
+
 pub async fn register(State(state): State<SharedState>, Json(req): Json<RegisterReq>) -> ApiResult<Json<RegisterRes>> {
     let role = req.role.clone().unwrap_or_else(|| "user".to_string());
     if role != "admin" && role != "user" {
@@ -187,6 +197,29 @@ pub async fn refresh(State(state): State<SharedState>, Json(req): Json<RefreshRe
         "expires_in": expires_in,
         "token_type": "Bearer"
     })))
+}
+
+pub async fn password_reset(
+    State(state): State<SharedState>,
+    Json(req): Json<PasswordResetReq>,
+) -> ApiResult<Json<PasswordResetRes>> {
+    let salt = SaltString::generate(&mut OsRng);
+    let new_hash = Argon2::default()
+        .hash_password(req.new_password.as_bytes(), &salt)
+        .map_err(|e| ApiError::Internal(e.to_string()))?
+        .to_string();
+
+    let row = sqlx::query!("SELECT lab_fun_update_password($1,$2) AS user_id", req.email, new_hash)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(ApiError::from)?;
+
+    let user_id = row
+        .user_id
+        .ok_or_else(|| ApiError::Internal("missing user_id from lab_fun_update_password".into()))?;
+
+    audit(&state, Some(user_id), "password_reset", Some(&req.email), None).await;
+    Ok(Json(PasswordResetRes { user_id }))
 }
 
 pub async fn logout(
