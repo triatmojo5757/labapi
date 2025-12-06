@@ -58,6 +58,13 @@ pub struct CheckPinReq {
 pub struct CheckPinRes {
     pub valid: bool,
 }
+#[derive(Serialize)]
+pub struct RekeningPtRes {
+    pub user_id: Uuid,
+    pub account_no: String,
+    pub email: String,
+    pub nama_lengkap: String,
+}
 
 pub async fn open_account(
     State(state): State<SharedState>,
@@ -227,4 +234,30 @@ pub async fn check_pin(
     audit(&state, Some(user_id), "account_pin_check", Some(&req.account_id.to_string()), Some(meta)).await;
 
     Ok(Json(CheckPinRes { valid }))
+}
+
+pub async fn list_rekening_pt(
+    State(state): State<SharedState>,
+) -> ApiResult<Json<Vec<RekeningPtRes>>> {
+    let rows = sqlx::query(
+        r#"
+        SELECT user_id, account_no, email, nama_lengkap
+        FROM lab_fun_get_rekening_pt()
+        "#
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(ApiError::from)?;
+
+    let data = rows
+        .into_iter()
+        .map(|row| RekeningPtRes {
+            user_id: row.get("user_id"),
+            account_no: row.get("account_no"),
+            email: row.get("email"),
+            nama_lengkap: row.get("nama_lengkap"),
+        })
+        .collect();
+
+    Ok(Json(data))
 }

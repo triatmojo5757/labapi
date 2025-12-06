@@ -82,6 +82,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/accounts/deposit", post(routes::cash::cash_deposit))
         .route("/accounts/withdraw", post(routes::cash::cash_withdraw))
         .route("/accounts/check_pin", post(routes::accounts::check_pin))
+        .route("/accounts/list_rekening_pt", get(routes::accounts::list_rekening_pt))
         .layer(from_fn_with_state(state.clone(), middleware::auth::auth_middleware));
 
     // === Admin (RBAC + Auth) ===
