@@ -752,15 +752,20 @@ SET default_table_access_method = heap;
 -- DROP FUNCTION public.lab_fun_transfer_by_no(uuid, text, text, double precision, text);
 
 CREATE OR REPLACE FUNCTION public.lab_fun_transfer_by_no(
-  p_user_id        uuid,
+  p_user_id uuid,
   p_from_account_no text,
-  p_to_account_no   text,
-  p_amount          double precision,
-  p_description     text
+  p_to_account_no text,
+  p_amount double precision,
+  p_description text
 )
-RETURNS TABLE(journal_id_credit uuid, journal_id_debit uuid)
+RETURNS TABLE(
+  journal_id_credit uuid,
+  journal_id_debit uuid,
+  token_from text,
+  token_to text
+)
 LANGUAGE plpgsql
-AS $$
+AS $function$
 DECLARE
   v_from_id     uuid;
   v_to_id       uuid;
@@ -781,24 +786,28 @@ BEGIN
     RAISE EXCEPTION 'AMOUNT_INVALID';
   END IF;
 
-  -- Resolve account_no -> id (+ lock)
+  -- Resolve FROM account
   SELECT id, user_id, saldo
     INTO v_from_id, v_owner_from, v_bal_from
   FROM lab_accounts
   WHERE account_no = p_from_account_no
   FOR UPDATE;
+
   IF v_from_id IS NULL THEN
     RAISE EXCEPTION 'ACCOUNT_FROM_NOT_FOUND';
   END IF;
+
   IF v_owner_from <> p_user_id THEN
     RAISE EXCEPTION 'ACCOUNT_NOT_OWNED';
   END IF;
 
+  -- Resolve TO account
   SELECT id, user_id, saldo
     INTO v_to_id, v_owner_to, v_bal_to
   FROM lab_accounts
   WHERE account_no = p_to_account_no
   FOR UPDATE;
+
   IF v_to_id IS NULL THEN
     RAISE EXCEPTION 'ACCOUNT_TO_NOT_FOUND';
   END IF;
@@ -812,26 +821,40 @@ BEGIN
   END IF;
 
   -- Hitung saldo baru
-  v_new_from := v_bal_from - (p_amount::numeric);
-  v_new_to   := v_bal_to   + (p_amount::numeric);
+  v_new_from := v_bal_from - p_amount::numeric;
+  v_new_to   := v_bal_to   + p_amount::numeric;
 
   -- Update saldo
   UPDATE lab_accounts SET saldo = v_new_from WHERE id = v_from_id;
   UPDATE lab_accounts SET saldo = v_new_to   WHERE id = v_to_id;
 
-  -- Jurnal CREDIT (keluar) sumber
+  -- Jurnal CREDIT (keluar)
   INSERT INTO lab_journals (id, user_id, account_id, debit, credit, description, balance_after, trx_time)
-  VALUES (v_j_credit, p_user_id, v_from_id, 0, (p_amount::numeric), COALESCE(p_description,'transfer out'), v_new_from, now());
+  VALUES (v_j_credit, p_user_id, v_from_id, 0, p_amount::numeric,
+          COALESCE(p_description,'transfer out'), v_new_from, now());
 
-  -- Jurnal DEBIT (masuk) tujuan
+  -- Jurnal DEBIT (masuk)
   INSERT INTO lab_journals (id, user_id, account_id, debit, credit, description, balance_after, trx_time)
-  VALUES (v_j_debit, v_owner_to, v_to_id, (p_amount::numeric), 0, COALESCE(p_description,'transfer in'), v_new_to, now());
+  VALUES (v_j_debit, v_owner_to, v_to_id, p_amount::numeric, 0,
+          COALESCE(p_description,'transfer in'), v_new_to, now());
+
+  -- Ambil token FROM & TO
+  SELECT lu.fcm_token
+    INTO token_from
+  FROM lab_users lu
+  WHERE lu.id = v_owner_from;
+
+  SELECT lu.fcm_token
+    INTO token_to
+  FROM lab_users lu
+  WHERE lu.id = v_owner_to;
 
   journal_id_credit := v_j_credit;
   journal_id_debit  := v_j_debit;
+
   RETURN NEXT;
 END;
-$$;
+$function$;
 
 --
 -- Name: lab_accounts; Type: TABLE; Schema: public; Owner: postgres

@@ -23,7 +23,10 @@ pub struct TransferReq {
 pub struct TransferRes {
     pub journal_id_credit: Uuid,
     pub journal_id_debit: Uuid,
+    pub token_from: Option<String>,
+    pub token_to: Option<String>,
 }
+
 
 pub async fn transfer(
     State(state): State<SharedState>,
@@ -69,11 +72,12 @@ pub async fn transfer(
     // Eksekusi transfer by account_no
     // =========================
     let row = sqlx::query(
-        r#"
-        SELECT journal_id_credit, journal_id_debit
-        FROM lab_fun_transfer_by_no($1,$2,$3,$4,$5)
-        "#,
-    )
+    r#"
+    SELECT journal_id_credit, journal_id_debit, token_from, token_to
+    FROM lab_fun_transfer_by_no($1,$2,$3,$4,$5)
+    "#,
+)
+
     .bind(user_id)
     .bind(&req.from_account_no)
     .bind(&req.to_account_no)
@@ -93,10 +97,11 @@ pub async fn transfer(
     })?;
 
     let res = TransferRes {
-        journal_id_credit: row.get("journal_id_credit"),
-        journal_id_debit:  row.get("journal_id_debit"),
-    };
-
+    journal_id_credit: row.get("journal_id_credit"),
+    journal_id_debit: row.get("journal_id_debit"),
+    token_from: row.get::<Option<String>, _>("token_from"),
+    token_to: row.get::<Option<String>, _>("token_to"),
+};
     // Audit
     let meta = serde_json::json!({
         "from_account_no": req.from_account_no,
