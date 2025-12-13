@@ -36,6 +36,11 @@ pub struct ProfileRes {
     pub updated_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
+#[derive(Deserialize)]
+pub struct FcmTokenUpdateReq {
+    pub fcm_token: String,
+}
+
 pub async fn get_profile(
     State(state): State<SharedState>,
     Extension(claims): Extension<Claims>,
@@ -100,5 +105,25 @@ pub async fn upsert_profile(
     .map_err(ApiError::from)?;
 
     audit(&state, Some(user_id), "profile_upsert", None, None).await;
+    Ok(axum::http::StatusCode::OK)
+}
+
+pub async fn update_fcm_token(
+    State(state): State<SharedState>,
+    Extension(claims): Extension<Claims>,
+    Json(p): Json<FcmTokenUpdateReq>,
+) -> ApiResult<axum::http::StatusCode> {
+    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| ApiError::Unauthorized("bad subject".into()))?;
+
+    sqlx::query(
+        r#"SELECT lab_fun_update_fcm_token($1,$2)"#,
+    )
+    .bind(user_id)
+    .bind(&p.fcm_token)
+    .execute(&state.pool)
+    .await
+    .map_err(ApiError::from)?;
+
+    audit(&state, Some(user_id), "fcm_token_notification", None, None).await;
     Ok(axum::http::StatusCode::OK)
 }
