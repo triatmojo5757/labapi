@@ -1,4 +1,4 @@
-use axum::{extract::{Path, State}, Extension, Json};
+use axum::{extract::{Path, State,Query}, Extension, Json};
 use serde::{Deserialize, Serialize}; // <-- import Serialize juga
 use sqlx::Row;
 use uuid::Uuid;
@@ -65,6 +65,18 @@ pub struct RekeningPtRes {
     pub email: String,
     pub nama_lengkap: String,
 }
+
+#[derive(Deserialize)]
+pub struct GetRekeningByNoAccountReq {
+    pub no_account: String,
+}
+
+#[derive(Serialize)]
+pub struct TransferReceiverRes {
+    pub to_account_no: String,
+    pub nama_lengkap: String,
+}
+
 
 pub async fn open_account(
     State(state): State<SharedState>,
@@ -256,6 +268,34 @@ pub async fn list_rekening_pt(
             account_no: row.get("account_no"),
             email: row.get("email"),
             nama_lengkap: row.get("nama_lengkap"),
+        })
+        .collect();
+
+    Ok(Json(data))
+}
+
+
+
+pub async fn get_rekening_by_no_account(
+    State(state): State<SharedState>,
+    Query(req): Query<GetRekeningByNoAccountReq>,
+) -> ApiResult<Json<Vec<TransferReceiverRes>>> {
+    let rows = sqlx::query(
+        r#"
+        SELECT *
+        FROM lab_fun_transfer_receivers($1)
+        "#,
+    )
+    .bind(&req.no_account)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(ApiError::from)?;
+
+    let data = rows
+        .into_iter()
+        .map(|row| TransferReceiverRes {
+            to_account_no: row.try_get("to_account_no").unwrap_or_default(),
+            nama_lengkap: row.try_get("nama_lengkap").unwrap_or_default(),
         })
         .collect();
 

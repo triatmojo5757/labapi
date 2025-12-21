@@ -84,6 +84,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/accounts/check_pin", post(routes::accounts::check_pin))
         .route("/accounts/list_rekening_pt", get(routes::accounts::list_rekening_pt))
         .route("/profile/fcm-token", patch(routes::profile::update_fcm_token))
+        .route("/accounts/get_rekening_by_no_account", get(routes::accounts::get_rekening_by_no_account))
         .layer(from_fn_with_state(state.clone(), middleware::auth::auth_middleware));
 
     // === Admin (RBAC + Auth) ===
