@@ -20,6 +20,7 @@ pub struct ProfileUpsertReq {
     pub no_telepon: Option<String>,
     pub alamat: Option<String>,
     pub ibu_kandung: Option<String>,
+    pub account_id: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -33,6 +34,7 @@ pub struct ProfileRes {
     pub no_telepon: Option<String>,
     pub alamat: Option<String>,
     pub ibu_kandung: Option<String>,
+    pub account_id: Option<String>,
     pub updated_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
@@ -49,7 +51,7 @@ pub async fn get_profile(
 
     let row = sqlx::query!(
         r#"SELECT user_id, ktp_nik, nama_lengkap, tempat_lahir, tanggal_lahir,
-                  jenis_kelamin, no_telepon, alamat, ibu_kandung, updated_at
+                  jenis_kelamin, no_telepon, alamat, ibu_kandung,account_id, updated_at
            FROM lab_fun_get_profile($1)"#,
         user_id
     )
@@ -68,13 +70,14 @@ pub async fn get_profile(
             no_telepon: r.no_telepon,
             alamat: r.alamat,
             ibu_kandung: r.ibu_kandung,
+            account_id: r.account_id,
             updated_at: r.updated_at.map(|t| t.into()),
         }
     } else {
         ProfileRes {
             user_id, ktp_nik: None, nama_lengkap: None, tempat_lahir: None,
             tanggal_lahir: None, jenis_kelamin: None, no_telepon: None,
-            alamat: None, ibu_kandung: None, updated_at: None,
+            alamat: None, ibu_kandung: None,account_id: None, updated_at: None,
         }
     };
 
@@ -89,7 +92,7 @@ pub async fn upsert_profile(
     let user_id = Uuid::parse_str(&claims.sub).map_err(|_| ApiError::Unauthorized("bad subject".into()))?;
 
     sqlx::query!(
-        r#"SELECT lab_fun_upsert_profile($1,$2,$3,$4,$5,$6,$7,$8,$9)"#,
+        r#"SELECT lab_fun_upsert_profile($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)"#,
         user_id,
         p.ktp_nik,
         p.nama_lengkap,
@@ -98,7 +101,8 @@ pub async fn upsert_profile(
         p.jenis_kelamin,
         p.no_telepon,
         p.alamat,
-        p.ibu_kandung
+        p.ibu_kandung,
+        p.account_id
     )
     .execute(&state.pool)
     .await
