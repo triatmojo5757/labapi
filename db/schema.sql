@@ -728,6 +728,42 @@ $$;
 ALTER FUNCTION public.lab_fun_withdraw(p_user_id uuid, p_account_id uuid, p_amount double precision, p_description text) OWNER TO postgres;
 
 --
+-- Name: corp_sp_update_widhraw_journal(bigint, character varying, bigint, character varying, character varying, character varying, timestamp without time zone, text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE OR REPLACE FUNCTION public.corp_sp_update_widhraw_journal(
+    p_code bigint,
+    p_jornal_id character varying,
+    p_account_no bigint,
+    p_debit character varying,
+    p_credit character varying,
+    p_journal_date character varying,
+    p_penarikan timestamp without time zone,
+    p_deskripsi text
+) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    UPDATE corp_report_widhraw
+    SET
+        jornal_id = p_jornal_id,
+        account_no = p_account_no,
+        debit = p_debit,
+        credit = p_credit,
+        journal_date = p_journal_date,
+        penarikan = p_penarikan,
+        deskripsi = p_deskripsi
+    WHERE code = p_code;
+
+    IF NOT FOUND THEN
+        RETURN false;
+    END IF;
+
+    RETURN true;
+END;
+$$;
+
+--
 -- Name: lab_touch_updated_at(); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
@@ -1197,4 +1233,3 @@ ALTER TABLE ONLY public.lab_refresh_tokens
 --
 
 \unrestrict smLsFw4SxJ9gqvYN4OPg3fkdfmBBmf9Wbjz9ddz1RSF1mvDrMcQ5xhqMvizhMiG
-

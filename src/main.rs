@@ -41,12 +41,15 @@ async fn main() -> anyhow::Result<()> {
     tracing::subscriber::set_global_default(subscriber).ok();
 
     let db_url = std::env::var("DATABASE_URL")?;
+    let db_url2 = std::env::var("DATABASE_URL2")?;
     let jwt_secret = std::env::var("JWT_SECRET")?;
 
     let pool = PgPoolOptions::new().max_connections(10).connect(&db_url).await?;
+    let pool2 = PgPoolOptions::new().max_connections(10).connect(&db_url2).await?;
 
     let state = Arc::new(AppState {
         pool,
+        pool2,
         jwt_secret: Arc::new(jwt_secret),
     });
 
@@ -67,7 +70,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/register", post(routes::auth::register))
         .route("/login", post(routes::auth::login))
         .route("/refresh", post(routes::auth::refresh))
-        .route("/password_reset", post(routes::auth::password_reset));
+        .route("/password_reset", post(routes::auth::password_reset))
+        .route("/check_email", post(routes::auth::check_email));
 
     // === Protected (wajib Authorization) ===
     let protected = Router::new()
@@ -81,6 +85,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/transfers", post(routes::transfers::transfer))
         .route("/accounts/deposit", post(routes::cash::cash_deposit))
         .route("/accounts/withdraw", post(routes::cash::cash_withdraw))
+        .route("/accounts/check_widhraw", get(routes::cash::check_widhraw))
+        .route("/accounts/get_eod", get(routes::cash::get_eod))
+        .route("/accounts/update_widhraw_journal", post(routes::cash::update_widhraw_journal))
         .route("/accounts/check_pin", post(routes::accounts::check_pin))
         .route("/accounts/list_rekening_pt", get(routes::accounts::list_rekening_pt))
         .route("/profile/fcm-token", patch(routes::profile::update_fcm_token))

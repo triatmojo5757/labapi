@@ -43,6 +43,14 @@ pub struct PasswordResetReq {
 pub struct PasswordResetRes {
     pub user_id: Uuid,
 }
+#[derive(Deserialize)]
+pub struct CheckEmailReq {
+    pub email: String,
+}
+#[derive(Serialize)]
+pub struct CheckEmailRes {
+    pub exists: bool,
+}
 
 pub async fn register(State(state): State<SharedState>, Json(req): Json<RegisterReq>) -> ApiResult<Json<RegisterRes>> {
     let role = req.role.clone().unwrap_or_else(|| "user".to_string());
@@ -220,6 +228,21 @@ pub async fn password_reset(
 
     audit(&state, Some(user_id), "password_reset", Some(&req.email), None).await;
     Ok(Json(PasswordResetRes { user_id }))
+}
+
+pub async fn check_email(
+    State(state): State<SharedState>,
+    Json(req): Json<CheckEmailReq>,
+) -> ApiResult<Json<CheckEmailRes>> {
+    let exists: Option<bool> = sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM corp_sp_get_email($1)) AS exists",
+    )
+    .bind(req.email)
+    .fetch_optional(&state.pool2)
+    .await
+    .map_err(ApiError::from)?;
+
+    Ok(Json(CheckEmailRes { exists: exists.unwrap_or(false) }))
 }
 
 pub async fn logout(
