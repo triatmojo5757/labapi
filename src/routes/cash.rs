@@ -51,6 +51,7 @@ pub struct WidhrawRes {
     pub role_name: String,
     pub branch_id: i32,
     pub branch_name: String,
+    pub debit: String,
 }
 
 #[derive(Serialize)]
@@ -182,6 +183,7 @@ pub async fn check_widhraw(
             role_name: row.try_get(3).map_err(ApiError::from)?,
             branch_id: row.try_get::<i32, _>(4).map_err(ApiError::from)?,
             branch_name: row.try_get(5).map_err(ApiError::from)?,
+            debit: row.try_get(6).map_err(ApiError::from)?,
         });
     }
 
