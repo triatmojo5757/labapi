@@ -30,6 +30,7 @@ mod routes {
     pub mod transfers;
     pub mod cash;
     pub mod admin;
+    pub mod notifications;
 }
 
 use app_state::AppState;
@@ -47,10 +48,27 @@ async fn main() -> anyhow::Result<()> {
     let pool = PgPoolOptions::new().max_connections(10).connect(&db_url).await?;
     let pool2 = PgPoolOptions::new().max_connections(10).connect(&db_url2).await?;
 
+    let firebase_path = std::env::var("FIREBASE_SERVICE_ACCOUNT")
+        .unwrap_or_else(|_| "screets/my-firebase-adminsdk.json".to_string());
+    let firebase = match std::fs::read_to_string(&firebase_path) {
+        Ok(raw) => match serde_json::from_str(&raw) {
+            Ok(cfg) => Some(Arc::new(cfg)),
+            Err(e) => {
+                info!("firebase config invalid ({}): {}", firebase_path, e);
+                None
+            }
+        },
+        Err(e) => {
+            info!("firebase config not loaded ({}): {}", firebase_path, e);
+            None
+        }
+    };
+
     let state = Arc::new(AppState {
         pool,
         pool2,
         jwt_secret: Arc::new(jwt_secret),
+        firebase,
     });
 
     let cors = CorsLayer::new()
@@ -92,6 +110,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/accounts/list_rekening_pt", get(routes::accounts::list_rekening_pt))
         .route("/profile/fcm-token", patch(routes::profile::update_fcm_token))
         .route("/accounts/get_rekening_by_no_account", get(routes::accounts::get_rekening_by_no_account))
+        .route("/notifications/send", post(routes::notifications::send_notification))
         .layer(from_fn_with_state(state.clone(), middleware::auth::auth_middleware));
 
     // === Admin (RBAC + Auth) ===

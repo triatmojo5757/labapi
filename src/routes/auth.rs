@@ -235,7 +235,7 @@ pub async fn check_email(
     Json(req): Json<CheckEmailReq>,
 ) -> ApiResult<Json<CheckEmailRes>> {
     let exists: Option<bool> = sqlx::query_scalar(
-        "SELECT EXISTS (SELECT 1 FROM corp_sp_get_email($1)) AS exists",
+        "SELECT COALESCE(corp_sp_get_email($1), false) AS exists",
     )
     .bind(req.email)
     .fetch_optional(&state.pool2)
