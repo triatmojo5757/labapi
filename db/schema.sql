@@ -285,6 +285,48 @@ $$;
 ALTER FUNCTION public.lab_fun_list_journal(p_user_id uuid, p_account_id uuid, p_limit integer, p_offset integer) OWNER TO postgres;
 
 --
+-- Name: journals_list_all(text, date, date, integer, integer); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.journals_list_all(
+    p_search text,
+    p_start_date date,
+    p_end_date date,
+    p_page integer,
+    p_page_size integer
+) RETURNS TABLE(
+    id uuid,
+    nama_lengkap text,
+    debit numeric,
+    credit numeric,
+    description text,
+    balance_after numeric,
+    trx_time timestamp with time zone
+)
+    LANGUAGE sql STABLE
+    AS $$
+  SELECT j.id,
+         p.nama_lengkap,
+         j.debit,
+         j.credit,
+         j.description,
+         j.balance_after,
+         j.trx_time
+  FROM lab_journals j
+  LEFT JOIN lab_profiles p ON p.user_id = j.user_id
+  WHERE (p_search IS NULL OR p.nama_lengkap ILIKE '%' || p_search || '%')
+    AND (p_start_date IS NULL OR j.trx_time::date >= p_start_date)
+    AND (p_end_date IS NULL OR j.trx_time::date <= p_end_date)
+  ORDER BY j.trx_time DESC
+  LIMIT GREATEST(COALESCE(p_page_size, 50), 1)
+  OFFSET GREATEST((GREATEST(COALESCE(p_page, 1), 1) - 1)
+                  * GREATEST(COALESCE(p_page_size, 50), 1), 0);
+$$;
+
+
+ALTER FUNCTION public.journals_list_all(text, date, date, integer, integer) OWNER TO postgres;
+
+--
 -- Name: lab_fun_open_account(uuid, text, double precision); Type: FUNCTION; Schema: public; Owner: postgres
 --
 

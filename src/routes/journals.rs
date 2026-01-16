@@ -2,7 +2,7 @@ use axum::{
     extract::{Path, Query, State},
     Extension, Json,
 };
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use uuid::Uuid;
@@ -214,6 +214,26 @@ pub struct JournalListQuery {
     pub offset: Option<i64>,
 }
 
+#[derive(Serialize)]
+pub struct JournalListAllRes {
+    pub id: Uuid,
+    pub nama_lengkap: Option<String>,
+    pub debit: f64,
+    pub credit: f64,
+    pub description: String,
+    pub balance_after: f64,
+    pub trx_time: DateTime<Utc>,
+}
+
+#[derive(Deserialize)]
+pub struct JournalListAllQuery {
+    pub search: Option<String>,
+    pub start_date: Option<NaiveDate>,
+    pub end_date: Option<NaiveDate>,
+    pub page: Option<i32>,
+    pub page_size: Option<i32>,
+}
+
 /// GET /journals/public?account_no=...&limit=...&offset=...  (public)
 pub async fn list_journals_public(
     State(state): State<SharedState>,
@@ -246,6 +266,55 @@ pub async fn list_journals_public(
                 .ok()
                 .flatten()
                 .unwrap_or_default(),
+        })
+        .collect();
+
+    Ok(Json(data))
+}
+
+/// GET /journals/list_all?search=...&start_date=...&end_date=...&page=...&page_size=...  (public)
+pub async fn list_journals_list_all(
+    State(state): State<SharedState>,
+    Query(q): Query<JournalListAllQuery>,
+) -> ApiResult<Json<Vec<JournalListAllRes>>> {
+    let page = q.page.unwrap_or(1).max(1);
+    let page_size = q.page_size.unwrap_or(50).max(1);
+
+    let rows = sqlx::query(
+        r#"
+        SELECT id,
+               nama_lengkap,
+               debit::float8  AS debit,
+               credit::float8 AS credit,
+               description,
+               balance_after::float8 AS balance_after,
+               trx_time
+        FROM public.lab_sp_get_journals_paged($1,$2,$3,$4,$5)
+        "#,
+    )
+    .bind(q.search.as_deref())
+    .bind(q.start_date)
+    .bind(q.end_date)
+    .bind(page)
+    .bind(page_size)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(ApiError::from)?;
+
+    let data = rows
+        .into_iter()
+        .map(|row| JournalListAllRes {
+            id: row.get("id"),
+            nama_lengkap: row.try_get::<Option<String>, _>("nama_lengkap").ok().flatten(),
+            debit: row.get::<f64, _>("debit"),
+            credit: row.get::<f64, _>("credit"),
+            description: row
+                .try_get::<Option<String>, _>("description")
+                .ok()
+                .flatten()
+                .unwrap_or_default(),
+            balance_after: row.get::<f64, _>("balance_after"),
+            trx_time: row.get("trx_time"),
         })
         .collect();
 
