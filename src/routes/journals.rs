@@ -218,6 +218,7 @@ pub struct JournalListQuery {
 pub struct JournalListAllRes {
     pub id: Uuid,
     pub nama_lengkap: Option<String>,
+    pub rekening: Option<String>,
     pub debit: f64,
     pub credit: f64,
     pub description: String,
@@ -284,6 +285,7 @@ pub async fn list_journals_list_all(
         r#"
         SELECT id,
                nama_lengkap,
+               rekening,
                debit::float8  AS debit,
                credit::float8 AS credit,
                description,
@@ -306,6 +308,7 @@ pub async fn list_journals_list_all(
         .map(|row| JournalListAllRes {
             id: row.get("id"),
             nama_lengkap: row.try_get::<Option<String>, _>("nama_lengkap").ok().flatten(),
+            rekening: row.try_get::<Option<String>, _>("rekening").ok().flatten(),
             debit: row.get::<f64, _>("debit"),
             credit: row.get::<f64, _>("credit"),
             description: row
