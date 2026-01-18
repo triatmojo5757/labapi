@@ -30,6 +30,7 @@ pub struct JournalRes {
     pub credit: f64,
     pub description: Option<String>,
     pub balance_after: f64,
+    pub nama_lengkap: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -41,6 +42,7 @@ pub struct JournalPublicRes {
     pub balance_after: f64,
     pub trx_time: DateTime<Utc>,
     pub description: String,
+    pub nama_lengkap: String,
 }
 
 #[derive(Serialize)]
@@ -107,6 +109,7 @@ pub async fn post_journal(
         credit: row.get::<f64, _>("credit"),
         description: row.try_get("description").ok(),
         balance_after: row.get::<f64, _>("balance_after"),
+        nama_lengkap: None,
     });
 
     let meta = serde_json::json!({
@@ -142,7 +145,8 @@ pub async fn list_journals(
                debit::float8  AS debit,
                credit::float8 AS credit,
                description,
-               balance_after::float8 AS balance_after
+               balance_after::float8 AS balance_after,
+               nama_lengkap
         FROM lab_fun_list_journal($1,$2,$3,$4)
         "#,
     )
@@ -163,6 +167,7 @@ pub async fn list_journals(
             credit: r.get::<f64, _>("credit"),
             description: r.try_get("description").ok(),
             balance_after: r.get::<f64, _>("balance_after"),
+            nama_lengkap: r.try_get::<Option<String>, _>("nama_lengkap").ok().flatten(),
         });
     }
 
@@ -176,7 +181,14 @@ pub async fn get_journal_public(
 ) -> ApiResult<Json<JournalPublicRes>> {
     let row = sqlx::query(
         r#"
-        SELECT journal_id, account_no, debit, credit, balance_after, trx_time, description
+        SELECT journal_id,
+               account_no,
+               debit,
+               credit,
+               balance_after,
+               trx_time,
+               description,
+               nama_lengkap
         FROM lab_fun_get_journal_public($1)
         "#,
     )
@@ -200,6 +212,10 @@ pub async fn get_journal_public(
         trx_time: row.try_get("trx_time").map_err(ApiError::from)?,
         description: row
             .try_get::<Option<String>, _>("description")
+            .map_err(ApiError::from)?
+            .unwrap_or_default(),
+        nama_lengkap: row
+            .try_get::<Option<String>, _>("nama_lengkap")
             .map_err(ApiError::from)?
             .unwrap_or_default(),
     };
@@ -242,7 +258,14 @@ pub async fn list_journals_public(
 ) -> ApiResult<Json<Vec<JournalPublicRes>>> {
     let rows = sqlx::query(
         r#"
-        SELECT journal_id, account_no, debit, credit, balance_after, trx_time, description
+        SELECT journal_id,
+               account_no,
+               debit,
+               credit,
+               balance_after,
+               trx_time,
+               description,
+               nama_lengkap
         FROM lab_fun_list_journals_public($1,$2,$3)
         "#,
     )
@@ -264,6 +287,11 @@ pub async fn list_journals_public(
             trx_time: row.get("trx_time"),
             description: row
                 .try_get::<Option<String>, _>("description")
+                .ok()
+                .flatten()
+                .unwrap_or_default(),
+            nama_lengkap: row
+                .try_get::<Option<String>, _>("nama_lengkap")
                 .ok()
                 .flatten()
                 .unwrap_or_default(),

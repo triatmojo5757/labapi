@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use argon2::{password_hash::rand_core::OsRng, Argon2};
 use axum::{extract::{Path, State}, Json};
 use base64::Engine;

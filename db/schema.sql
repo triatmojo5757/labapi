@@ -269,11 +269,18 @@ ALTER FUNCTION public.lab_fun_list_accounts_by_user(p_user_id uuid) OWNER TO pos
 -- Name: lab_fun_list_journal(uuid, uuid, integer, integer); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.lab_fun_list_journal(p_user_id uuid, p_account_id uuid, p_limit integer, p_offset integer) RETURNS TABLE(id uuid, trx_time timestamp with time zone, debit numeric, credit numeric, description text, balance_after numeric)
+CREATE FUNCTION public.lab_fun_list_journal(p_user_id uuid, p_account_id uuid, p_limit integer, p_offset integer) RETURNS TABLE(id uuid, trx_time timestamp with time zone, debit numeric, credit numeric, description text, balance_after numeric, nama_lengkap text)
     LANGUAGE sql STABLE
     AS $$
-  SELECT j.id, j.trx_time, j.debit, j.credit, j.description, j.balance_after
+  SELECT j.id,
+         j.trx_time,
+         j.debit,
+         j.credit,
+         j.description,
+         j.balance_after,
+         p.nama_lengkap
   FROM lab_journals j
+  LEFT JOIN lab_profiles p ON p.user_id = j.user_id
   WHERE j.user_id = p_user_id
     AND j.account_id = p_account_id
   ORDER BY j.trx_time DESC
@@ -770,7 +777,7 @@ $$;
 ALTER FUNCTION public.lab_fun_withdraw(p_user_id uuid, p_account_id uuid, p_amount double precision, p_description text) OWNER TO postgres;
 
 --
--- Name: corp_sp_update_widhraw_journal(bigint, character varying, bigint, character varying, character varying, character varying, timestamp without time zone, text); Type: FUNCTION; Schema: public; Owner: postgres
+-- Name: corp_sp_update_widhraw_journal(bigint, character varying, bigint, character varying, character varying, character varying, text, text); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
 CREATE OR REPLACE FUNCTION public.corp_sp_update_widhraw_journal(
@@ -780,8 +787,8 @@ CREATE OR REPLACE FUNCTION public.corp_sp_update_widhraw_journal(
     p_debit character varying,
     p_credit character varying,
     p_journal_date character varying,
-    p_penarikan timestamp without time zone,
-    p_deskripsi text
+    p_deskripsi text,
+    p_nama_lengkap text
 ) RETURNS boolean
     LANGUAGE plpgsql
     AS $$
@@ -793,8 +800,8 @@ BEGIN
         debit = p_debit,
         credit = p_credit,
         journal_date = p_journal_date,
-        penarikan = p_penarikan,
-        deskripsi = p_deskripsi
+        deskripsi = p_deskripsi,
+        nama_lengkap = p_nama_lengkap
     WHERE code = p_code;
 
     IF NOT FOUND THEN

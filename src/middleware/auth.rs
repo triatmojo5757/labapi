@@ -5,7 +5,6 @@ use axum::{
     response::Response,
 };
 use jsonwebtoken::{decode, DecodingKey, Validation, TokenData};
-use sqlx::Row;
 
 use crate::{
     app_state::SharedState,

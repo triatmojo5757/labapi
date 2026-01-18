@@ -68,6 +68,7 @@ pub struct UpdateWidhrawJournalReq {
     pub credit: String,
     pub journal_date: String,
     pub deskripsi: String,
+    pub nama_lengkap: String,
 }
 
 #[derive(Serialize)]
@@ -209,7 +210,7 @@ pub async fn update_widhraw_journal(
     Json(req): Json<UpdateWidhrawJournalReq>,
 ) -> ApiResult<Json<UpdateWidhrawJournalRes>> {
     let ok = sqlx::query_scalar(
-        "SELECT corp_sp_update_widhraw_journal($1,$2,$3,$4,$5,$6,$7)",
+        "SELECT corp_sp_update_widhraw_journal($1,$2,$3,$4,$5,$6,$7,$8)",
     )
     .bind(req.code)
     .bind(req.jornal_id)
@@ -218,6 +219,7 @@ pub async fn update_widhraw_journal(
     .bind(req.credit)
     .bind(req.journal_date)
     .bind(req.deskripsi)
+    .bind(req.nama_lengkap)
     .fetch_one(&state.pool2)
     .await
     .map_err(ApiError::from)?;
