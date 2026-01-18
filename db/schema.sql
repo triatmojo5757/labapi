@@ -121,10 +121,10 @@ $$;
 ALTER FUNCTION public.lab_fun_create_refresh_token(p_user_id uuid, p_token_sha256 bytea, p_user_agent text, p_ip_addr text, p_expires_at timestamp with time zone) OWNER TO postgres;
 
 --
--- Name: lab_fun_deposit(uuid, uuid, double precision, text); Type: FUNCTION; Schema: public; Owner: postgres
+-- Name: lab_fun_deposit(uuid, uuid, double precision, text, text); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.lab_fun_deposit(p_user_id uuid, p_account_id uuid, p_amount double precision, p_description text) RETURNS TABLE(journal_id uuid, account_id uuid, balance_after double precision, trx_time timestamp with time zone, description text)
+CREATE FUNCTION public.lab_fun_deposit(p_user_id uuid, p_account_id uuid, p_amount double precision, p_description text, p_akun text) RETURNS TABLE(journal_id uuid, account_id uuid, balance_after double precision, trx_time timestamp with time zone, description text)
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -161,7 +161,7 @@ END;
 $$;
 
 
-ALTER FUNCTION public.lab_fun_deposit(p_user_id uuid, p_account_id uuid, p_amount double precision, p_description text) OWNER TO postgres;
+ALTER FUNCTION public.lab_fun_deposit(p_user_id uuid, p_account_id uuid, p_amount double precision, p_description text, p_akun text) OWNER TO postgres;
 
 --
 -- Name: lab_fun_find_refresh_token(uuid, text); Type: FUNCTION; Schema: public; Owner: postgres
@@ -729,10 +729,10 @@ $$;
 ALTER FUNCTION public.lab_fun_verify_account_pin(p_user_id uuid, p_account_id uuid, p_pin text) OWNER TO postgres;
 
 --
--- Name: lab_fun_withdraw(uuid, uuid, double precision, text); Type: FUNCTION; Schema: public; Owner: postgres
+-- Name: lab_fun_withdraw(uuid, uuid, double precision, text, text); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
-CREATE FUNCTION public.lab_fun_withdraw(p_user_id uuid, p_account_id uuid, p_amount double precision, p_description text) RETURNS TABLE(journal_id uuid, account_id uuid, balance_after double precision, trx_time timestamp with time zone, description text)
+CREATE FUNCTION public.lab_fun_withdraw(p_user_id uuid, p_account_id uuid, p_amount double precision, p_description text, p_akun text) RETURNS TABLE(journal_id uuid, account_id uuid, balance_after double precision, trx_time timestamp with time zone, description text)
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -774,7 +774,7 @@ END;
 $$;
 
 
-ALTER FUNCTION public.lab_fun_withdraw(p_user_id uuid, p_account_id uuid, p_amount double precision, p_description text) OWNER TO postgres;
+ALTER FUNCTION public.lab_fun_withdraw(p_user_id uuid, p_account_id uuid, p_amount double precision, p_description text, p_akun text) OWNER TO postgres;
 
 --
 -- Name: corp_sp_update_widhraw_journal(bigint, character varying, bigint, character varying, character varying, character varying, text, text); Type: FUNCTION; Schema: public; Owner: postgres
@@ -834,14 +834,15 @@ SET default_table_access_method = heap;
 -- =========================================================
 -- Transfer by account_no (tanpa mengubah fungsi lama)
 -- =========================================================
--- DROP FUNCTION public.lab_fun_transfer_by_no(uuid, text, text, double precision, text);
+-- DROP FUNCTION public.lab_fun_transfer_by_no(uuid, text, text, double precision, text, text);
 
 CREATE OR REPLACE FUNCTION public.lab_fun_transfer_by_no(
   p_user_id uuid,
   p_from_account_no text,
   p_to_account_no text,
   p_amount double precision,
-  p_description text
+  p_description text,
+  p_akun text
 )
 RETURNS TABLE(
   journal_id_credit uuid,

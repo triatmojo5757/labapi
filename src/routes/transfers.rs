@@ -17,6 +17,7 @@ pub struct TransferReq {
     pub amount: f64,
     pub description: Option<String>,
     pub pin: String,
+    pub akun: String,
 }
 
 #[derive(Serialize)]
@@ -74,7 +75,7 @@ pub async fn transfer(
     let row = sqlx::query(
     r#"
     SELECT journal_id_credit, journal_id_debit, token_from, token_to
-    FROM lab_fun_transfer_by_no($1,$2,$3,$4,$5)
+    FROM lab_fun_transfer_by_no($1,$2,$3,$4,$5,$6)
     "#,
 )
 
@@ -83,6 +84,7 @@ pub async fn transfer(
     .bind(&req.to_account_no)
     .bind(req.amount)
     .bind(req.description.clone())
+    .bind(&req.akun)
     .fetch_one(&state.pool)
     .await
     .map_err(|e| {

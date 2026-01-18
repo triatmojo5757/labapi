@@ -18,6 +18,7 @@ pub struct DepositReq {
     pub amount: f64,
     pub description: Option<String>,
     pub pin: String,
+    pub akun: String,
 }
 
 /// Request untuk tarik tunai (wajib PIN)
@@ -27,6 +28,7 @@ pub struct WithdrawReq {
     pub amount: f64,
     pub description: Option<String>,
     pub pin: String,
+    pub akun: String,
 }
 
 #[derive(Serialize)]
@@ -97,13 +99,14 @@ pub async fn cash_deposit(
     let row = sqlx::query(
         r#"
         SELECT journal_id, account_id, balance_after, trx_time, description
-        FROM lab_fun_deposit($1,$2,$3,$4)
+        FROM lab_fun_deposit($1,$2,$3,$4,$5)
         "#
     )
     .bind(user_id)
     .bind(req.account_id)
     .bind(req.amount)
     .bind(req.description.as_deref())
+    .bind(&req.akun)
     .fetch_one(&state.pool)
     .await
     .map_err(ApiError::from)?;
@@ -140,13 +143,14 @@ pub async fn cash_withdraw(
     let row = sqlx::query(
         r#"
         SELECT journal_id, account_id, balance_after, trx_time, description
-        FROM lab_fun_withdraw($1,$2,$3,$4)
+        FROM lab_fun_withdraw($1,$2,$3,$4,$5)
         "#
     )
     .bind(user_id)
     .bind(req.account_id)
     .bind(req.amount)
     .bind(req.description.as_deref())
+    .bind(&req.akun)
     .fetch_one(&state.pool)
     .await
     .map_err(ApiError::from)?;
