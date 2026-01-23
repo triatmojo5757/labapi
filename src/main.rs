@@ -138,6 +138,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/digiflazz/products", get(routes::digiflaz::list_digiflazz_products))
         .route("/digiflazz/cek-saldo", get(routes::digiflaz::cek_saldo))
         .route("/digiflazz/inquiry-pln", post(routes::digiflaz::inquiry_pln))
+        .route("/digiflazz/topup", post(routes::digiflaz::topup_digiflazz))
+        .route("/digiflazz/cek-status/:ref_id", get(routes::digiflaz::cek_status_digiflazz))
         .route("/notifications/send", post(routes::notifications::send_notification))
         .layer(from_fn_with_state(state.clone(), middleware::auth::auth_middleware));
 
