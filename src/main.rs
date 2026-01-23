@@ -31,9 +31,10 @@ mod routes {
     pub mod cash;
     pub mod admin;
     pub mod notifications;
+    pub mod digiflaz;
 }
 
-use app_state::AppState;
+use app_state::{AppState, DigiflazzConfig};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -44,6 +45,20 @@ async fn main() -> anyhow::Result<()> {
     let db_url = std::env::var("DATABASE_URL")?;
     let db_url2 = std::env::var("DATABASE_URL2")?;
     let jwt_secret = std::env::var("JWT_SECRET")?;
+    let digiflazz_username = std::env::var("DIGIFLAZZ_USERNAME")?
+        .trim()
+        .to_string();
+    let digiflazz_dev_key = std::env::var("DIGIFLAZZ_DEV_KEY")?
+        .trim()
+        .to_string();
+    let digiflazz_prod_key = std::env::var("DIGIFLAZZ_PROD_KEY")?
+        .trim()
+        .to_string();
+    let digiflazz_mode = std::env::var("DIGIFLAZZ_MODE").unwrap_or_else(|_| "dev".to_string());
+    let digiflazz_use_production = matches!(
+        digiflazz_mode.as_str(),
+        "prod" | "production" | "live"
+    );
 
     let pool = PgPoolOptions::new().max_connections(10).connect(&db_url).await?;
     let pool2 = PgPoolOptions::new().max_connections(10).connect(&db_url2).await?;
@@ -69,6 +84,12 @@ async fn main() -> anyhow::Result<()> {
         pool2,
         jwt_secret: Arc::new(jwt_secret),
         firebase,
+        digiflazz: DigiflazzConfig {
+            username: digiflazz_username,
+            dev_key: digiflazz_dev_key,
+            prod_key: digiflazz_prod_key,
+            use_production: digiflazz_use_production,
+        },
     });
 
     let cors = CorsLayer::new()
@@ -114,6 +135,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/accounts/list_rekening_pt", get(routes::accounts::list_rekening_pt))
         .route("/profile/fcm-token", patch(routes::profile::update_fcm_token))
         .route("/accounts/get_rekening_by_no_account", get(routes::accounts::get_rekening_by_no_account))
+        .route("/digiflazz/products", get(routes::digiflaz::list_digiflazz_products))
+        .route("/digiflazz/cek-saldo", get(routes::digiflaz::cek_saldo))
+        .route("/digiflazz/inquiry-pln", post(routes::digiflaz::inquiry_pln))
         .route("/notifications/send", post(routes::notifications::send_notification))
         .layer(from_fn_with_state(state.clone(), middleware::auth::auth_middleware));
 

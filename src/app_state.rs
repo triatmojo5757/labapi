@@ -17,6 +17,15 @@ pub struct AppState {
     pub pool2: PgPool,
     pub jwt_secret: Arc<String>,
     pub firebase: Option<Arc<FirebaseServiceAccount>>,
+    pub digiflazz: DigiflazzConfig,
 }
 
 pub type SharedState = Arc<AppState>;
+
+#[derive(Clone)]
+pub struct DigiflazzConfig {
+    pub username: String,
+    pub dev_key: String,
+    pub prod_key: String,
+    pub use_production: bool,
+}
