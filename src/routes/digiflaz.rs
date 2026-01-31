@@ -1,4 +1,4 @@
-use axum::{extract::{Path, State}, Extension, Json};
+use axum::{extract::{Path, Query, State}, Extension, Json};
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
@@ -37,6 +37,13 @@ pub struct DigiflazzProductRes {
     pub nominal: Option<i32>,
     pub created_at: Option<NaiveDateTime>,
     pub updated_at: Option<NaiveDateTime>,
+}
+
+#[derive(Deserialize)]
+pub struct DigiflazzProductQuery {
+    pub product_name: Option<String>,
+    pub category: Option<String>,
+    pub brand: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -182,8 +189,19 @@ pub struct DigiflazzPascaPayReq {
 pub async fn list_digiflazz_products(
     State(state): State<SharedState>,
     Extension(_claims): Extension<Claims>,
+    Query(params): Query<DigiflazzProductQuery>,
 ) -> ApiResult<Json<Vec<DigiflazzProductRes>>> {
-    let rows = sqlx::query("SELECT * FROM public.corp_sp_get_digiflazz_products()")
+    let DigiflazzProductQuery {
+        product_name,
+        category,
+        brand,
+    } = params;
+    let rows = sqlx::query(
+        "SELECT * FROM public.corp_sp_get_digiflazz_products($1,$2,$3)",
+    )
+    .bind(product_name)
+    .bind(category)
+    .bind(brand)
         .fetch_all(&state.pool2)
         .await
         .map_err(ApiError::from)?;
