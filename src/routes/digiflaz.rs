@@ -197,7 +197,7 @@ pub async fn list_digiflazz_products(
         brand,
     } = params;
     let rows = sqlx::query(
-        "SELECT * FROM public.corp_sp_get_digiflazz_products($1,$2,$3)",
+        "SELECT * FROM public.corp_sp_get_digiflazz_products2($1,$2,$3)",
     )
     .bind(product_name)
     .bind(category)
