@@ -16,7 +16,9 @@ pub enum ApiError {
 }
 
 impl From<sqlx::Error> for ApiError {
-    fn from(e: sqlx::Error) -> Self { ApiError::Internal(e.to_string()) }
+    fn from(e: sqlx::Error) -> Self {
+        ApiError::Internal(e.to_string())
+    }
 }
 
 impl From<ApiError> for (StatusCode, String) {

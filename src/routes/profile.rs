@@ -1,4 +1,4 @@
-use axum::{extract::State, Json, Extension};
+use axum::{extract::State, Extension, Json};
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -47,7 +47,8 @@ pub async fn get_profile(
     State(state): State<SharedState>,
     Extension(claims): Extension<Claims>,
 ) -> ApiResult<Json<ProfileRes>> {
-    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| ApiError::Unauthorized("bad subject".into()))?;
+    let user_id =
+        Uuid::parse_str(&claims.sub).map_err(|_| ApiError::Unauthorized("bad subject".into()))?;
 
     let row = sqlx::query!(
         r#"SELECT user_id, ktp_nik, nama_lengkap, tempat_lahir, tanggal_lahir,
@@ -75,9 +76,17 @@ pub async fn get_profile(
         }
     } else {
         ProfileRes {
-            user_id, ktp_nik: None, nama_lengkap: None, tempat_lahir: None,
-            tanggal_lahir: None, jenis_kelamin: None, no_telepon: None,
-            alamat: None, ibu_kandung: None,account_id: None, updated_at: None,
+            user_id,
+            ktp_nik: None,
+            nama_lengkap: None,
+            tempat_lahir: None,
+            tanggal_lahir: None,
+            jenis_kelamin: None,
+            no_telepon: None,
+            alamat: None,
+            ibu_kandung: None,
+            account_id: None,
+            updated_at: None,
         }
     };
 
@@ -89,7 +98,8 @@ pub async fn upsert_profile(
     Extension(claims): Extension<Claims>,
     Json(p): Json<ProfileUpsertReq>,
 ) -> ApiResult<axum::http::StatusCode> {
-    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| ApiError::Unauthorized("bad subject".into()))?;
+    let user_id =
+        Uuid::parse_str(&claims.sub).map_err(|_| ApiError::Unauthorized("bad subject".into()))?;
 
     sqlx::query!(
         r#"SELECT lab_fun_upsert_profile($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)"#,
@@ -117,16 +127,15 @@ pub async fn update_fcm_token(
     Extension(claims): Extension<Claims>,
     Json(p): Json<FcmTokenUpdateReq>,
 ) -> ApiResult<axum::http::StatusCode> {
-    let user_id = Uuid::parse_str(&claims.sub).map_err(|_| ApiError::Unauthorized("bad subject".into()))?;
+    let user_id =
+        Uuid::parse_str(&claims.sub).map_err(|_| ApiError::Unauthorized("bad subject".into()))?;
 
-    sqlx::query(
-        r#"SELECT lab_fun_update_fcm_token($1,$2)"#,
-    )
-    .bind(user_id)
-    .bind(&p.fcm_token)
-    .execute(&state.pool)
-    .await
-    .map_err(ApiError::from)?;
+    sqlx::query(r#"SELECT lab_fun_update_fcm_token($1,$2)"#)
+        .bind(user_id)
+        .bind(&p.fcm_token)
+        .execute(&state.pool)
+        .await
+        .map_err(ApiError::from)?;
 
     audit(&state, Some(user_id), "fcm_token_notification", None, None).await;
     Ok(axum::http::StatusCode::OK)

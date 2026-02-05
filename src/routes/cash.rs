@@ -1,4 +1,7 @@
-use axum::{extract::{Query, State}, Extension, Json};
+use axum::{
+    extract::{Query, State},
+    Extension, Json,
+};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
@@ -90,8 +93,8 @@ pub async fn cash_deposit(
         return Err(ApiError::BadRequest("pin must be 6 digits".into()).into());
     }
 
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| ApiError::Unauthorized("bad subject".into()))?;
+    let user_id =
+        Uuid::parse_str(&claims.sub).map_err(|_| ApiError::Unauthorized("bad subject".into()))?;
 
     // ✅ Validasi PIN di Rust sebelum panggil DB
     verify_account_pin(&state, user_id, req.account_id, &req.pin).await?;
@@ -100,7 +103,7 @@ pub async fn cash_deposit(
         r#"
         SELECT journal_id, account_id, balance_after, trx_time, description
         FROM lab_fun_deposit($1,$2,$3,$4,$5)
-        "#
+        "#,
     )
     .bind(user_id)
     .bind(req.account_id)
@@ -114,7 +117,9 @@ pub async fn cash_deposit(
     let res = CashRes {
         journal_id: row.try_get("journal_id").map_err(ApiError::from)?,
         account_id: row.try_get("account_id").map_err(ApiError::from)?,
-        balance_after: row.try_get::<f64,_>("balance_after").map_err(ApiError::from)?,
+        balance_after: row
+            .try_get::<f64, _>("balance_after")
+            .map_err(ApiError::from)?,
         trx_time: row.try_get("trx_time").map_err(ApiError::from)?,
         description: row
             .try_get::<Option<String>, _>("description")
@@ -122,7 +127,14 @@ pub async fn cash_deposit(
             .unwrap_or_default(),
     };
 
-    audit(&state, Some(user_id), "deposit", Some(&res.journal_id.to_string()), None).await;
+    audit(
+        &state,
+        Some(user_id),
+        "deposit",
+        Some(&res.journal_id.to_string()),
+        None,
+    )
+    .await;
     Ok(Json(res))
 }
 
@@ -134,8 +146,8 @@ pub async fn cash_withdraw(
     if req.amount <= 0.0 {
         return Err(ApiError::BadRequest("amount must be > 0".into()).into());
     }
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| ApiError::Unauthorized("bad subject".into()))?;
+    let user_id =
+        Uuid::parse_str(&claims.sub).map_err(|_| ApiError::Unauthorized("bad subject".into()))?;
 
     // ✅ Validasi PIN sebelum tarik tunai
     verify_account_pin(&state, user_id, req.account_id, &req.pin).await?;
@@ -144,7 +156,7 @@ pub async fn cash_withdraw(
         r#"
         SELECT journal_id, account_id, balance_after, trx_time, description
         FROM lab_fun_withdraw($1,$2,$3,$4,$5)
-        "#
+        "#,
     )
     .bind(user_id)
     .bind(req.account_id)
@@ -158,13 +170,24 @@ pub async fn cash_withdraw(
     let res = CashRes {
         journal_id: row.try_get("journal_id").map_err(ApiError::from)?,
         account_id: row.try_get("account_id").map_err(ApiError::from)?,
-        balance_after: row.try_get::<f64,_>("balance_after").map_err(ApiError::from)?,
+        balance_after: row
+            .try_get::<f64, _>("balance_after")
+            .map_err(ApiError::from)?,
         trx_time: row.try_get("trx_time").map_err(ApiError::from)?,
-        description: row.try_get::<Option<String>,_>("description").map_err(ApiError::from)?
+        description: row
+            .try_get::<Option<String>, _>("description")
+            .map_err(ApiError::from)?
             .unwrap_or_default(),
     };
 
-    audit(&state, Some(user_id), "withdraw", Some(&res.journal_id.to_string()), None).await;
+    audit(
+        &state,
+        Some(user_id),
+        "withdraw",
+        Some(&res.journal_id.to_string()),
+        None,
+    )
+    .await;
     Ok(Json(res))
 }
 
@@ -213,20 +236,18 @@ pub async fn update_widhraw_journal(
     Extension(_claims): Extension<Claims>,
     Json(req): Json<UpdateWidhrawJournalReq>,
 ) -> ApiResult<Json<UpdateWidhrawJournalRes>> {
-    let ok = sqlx::query_scalar(
-        "SELECT corp_sp_update_widhraw_journal($1,$2,$3,$4,$5,$6,$7,$8)",
-    )
-    .bind(req.code)
-    .bind(req.jornal_id)
-    .bind(req.account_no)
-    .bind(req.debit)
-    .bind(req.credit)
-    .bind(req.journal_date)
-    .bind(req.deskripsi)
-    .bind(req.nama_lengkap)
-    .fetch_one(&state.pool2)
-    .await
-    .map_err(ApiError::from)?;
+    let ok = sqlx::query_scalar("SELECT corp_sp_update_widhraw_journal($1,$2,$3,$4,$5,$6,$7,$8)")
+        .bind(req.code)
+        .bind(req.jornal_id)
+        .bind(req.account_no)
+        .bind(req.debit)
+        .bind(req.credit)
+        .bind(req.journal_date)
+        .bind(req.deskripsi)
+        .bind(req.nama_lengkap)
+        .fetch_one(&state.pool2)
+        .await
+        .map_err(ApiError::from)?;
 
     Ok(Json(UpdateWidhrawJournalRes { ok }))
 }

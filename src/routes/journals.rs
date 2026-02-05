@@ -167,7 +167,10 @@ pub async fn list_journals(
             credit: r.get::<f64, _>("credit"),
             description: r.try_get("description").ok(),
             balance_after: r.get::<f64, _>("balance_after"),
-            nama_lengkap: r.try_get::<Option<String>, _>("nama_lengkap").ok().flatten(),
+            nama_lengkap: r
+                .try_get::<Option<String>, _>("nama_lengkap")
+                .ok()
+                .flatten(),
         });
     }
 
@@ -208,7 +211,9 @@ pub async fn get_journal_public(
         account_no: row.try_get("account_no").map_err(ApiError::from)?,
         debit: row.try_get::<f64, _>("debit").map_err(ApiError::from)?,
         credit: row.try_get::<f64, _>("credit").map_err(ApiError::from)?,
-        balance_after: row.try_get::<f64, _>("balance_after").map_err(ApiError::from)?,
+        balance_after: row
+            .try_get::<f64, _>("balance_after")
+            .map_err(ApiError::from)?,
         trx_time: row.try_get("trx_time").map_err(ApiError::from)?,
         description: row
             .try_get::<Option<String>, _>("description")
@@ -337,7 +342,10 @@ pub async fn list_journals_list_all(
         .into_iter()
         .map(|row| JournalListAllRes {
             id: row.get("id"),
-            nama_lengkap: row.try_get::<Option<String>, _>("nama_lengkap").ok().flatten(),
+            nama_lengkap: row
+                .try_get::<Option<String>, _>("nama_lengkap")
+                .ok()
+                .flatten(),
             akun: row.try_get::<Option<String>, _>("akun").ok().flatten(),
             rekening: row.try_get::<Option<String>, _>("rekening").ok().flatten(),
             debit: row.get::<f64, _>("debit"),

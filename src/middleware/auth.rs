@@ -4,13 +4,9 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use jsonwebtoken::{decode, DecodingKey, Validation, TokenData};
+use jsonwebtoken::{decode, DecodingKey, TokenData, Validation};
 
-use crate::{
-    app_state::SharedState,
-    errors::ApiError,
-    models::Claims,
-};
+use crate::{app_state::SharedState, errors::ApiError, models::Claims};
 
 pub async fn auth_middleware(
     State(state): State<SharedState>,
@@ -29,9 +25,14 @@ pub async fn auth_middleware(
     }
 
     let Some(auth) = req.headers().get(header::AUTHORIZATION) else {
-        return Err((StatusCode::UNAUTHORIZED, "Missing Authorization header".into()));
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            "Missing Authorization header".into(),
+        ));
     };
-    let auth = auth.to_str().map_err(|_| (StatusCode::UNAUTHORIZED, "Bad Authorization header".into()))?;
+    let auth = auth
+        .to_str()
+        .map_err(|_| (StatusCode::UNAUTHORIZED, "Bad Authorization header".into()))?;
 
     let mut it = auth.split_whitespace();
     let scheme = it.next().unwrap_or_default();

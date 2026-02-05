@@ -1,9 +1,13 @@
-use axum::{extract::{Path, Query, State}, Extension, Json};
+use axum::{
+    extract::{Path, Query, State},
+    Extension, Json,
+};
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use tokio::time::{sleep, Duration};
 
+use crate::routes::cash::cash_withdraw;
 use crate::{
     app_state::SharedState,
     errors::{ApiError, ApiResult},
@@ -11,9 +15,8 @@ use crate::{
     routes::cash::cash_deposit,
     utils::verify_account_pin,
 };
-use crate::routes::cash::cash_withdraw;
-use uuid::Uuid;
 use sqlx::types::BigDecimal;
+use uuid::Uuid;
 
 #[derive(Serialize)]
 pub struct DigiflazzProductRes {
@@ -196,12 +199,10 @@ pub async fn list_digiflazz_products(
         category,
         brand,
     } = params;
-    let rows = sqlx::query(
-        "SELECT * FROM public.corp_sp_get_digiflazz_products2($1,$2,$3)",
-    )
-    .bind(product_name)
-    .bind(category)
-    .bind(brand)
+    let rows = sqlx::query("SELECT * FROM public.corp_sp_get_digiflazz_products2($1,$2,$3)")
+        .bind(product_name)
+        .bind(category)
+        .bind(brand)
         .fetch_all(&state.pool2)
         .await
         .map_err(ApiError::from)?;
@@ -241,7 +242,9 @@ pub async fn list_digiflazz_products(
             description: row
                 .try_get::<Option<String>, _>("description")
                 .map_err(ApiError::from)?,
-            nominal: row.try_get::<Option<i32>, _>("nominal").map_err(ApiError::from)?,
+            nominal: row
+                .try_get::<Option<i32>, _>("nominal")
+                .map_err(ApiError::from)?,
             created_at: row
                 .try_get::<Option<NaiveDateTime>, _>("created_at")
                 .map_err(ApiError::from)?,
@@ -304,11 +307,9 @@ pub async fn cek_saldo(
     let status = resp.status();
     let body_text = resp.text().await.unwrap_or_default();
     if !status.is_success() {
-        return Err(ApiError::Internal(format!(
-            "digiflazz status {}: {}",
-            status, body_text
-        ))
-        .into());
+        return Err(
+            ApiError::Internal(format!("digiflazz status {}: {}", status, body_text)).into(),
+        );
     }
 
     let body = serde_json::from_str::<DigiflazzSaldoResponse>(&body_text)
@@ -359,11 +360,9 @@ pub async fn inquiry_pln(
     let body_text = resp.text().await.unwrap_or_default();
     tracing::info!("digiflazz inquiry-pln response: {}", body_text);
     if !status.is_success() {
-        return Err(ApiError::Internal(format!(
-            "digiflazz status {}: {}",
-            status, body_text
-        ))
-        .into());
+        return Err(
+            ApiError::Internal(format!("digiflazz status {}: {}", status, body_text)).into(),
+        );
     }
 
     let body = serde_json::from_str::<InquiryPlnResponse>(&body_text)
@@ -419,8 +418,8 @@ pub async fn inquiry_pasca_digiflazz(
         .await
         .map_err(|e| ApiError::Internal(e.to_string()))?;
 
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| ApiError::Unauthorized("bad subject".into()))?;
+    let user_id =
+        Uuid::parse_str(&claims.sub).map_err(|_| ApiError::Unauthorized("bad subject".into()))?;
     let status = resp.status();
     let body_text = resp.text().await.unwrap_or_default();
     let body = serde_json::from_str::<serde_json::Value>(&body_text).ok();
@@ -472,10 +471,18 @@ pub async fn inquiry_pasca_digiflazz(
     .map_err(ApiError::from)?;
     let (rc, message, _status_txt, sn) = match body.as_ref() {
         Some(body) => (
-            body.pointer("/data/rc").and_then(|v| v.as_str()).unwrap_or(""),
-            body.pointer("/data/message").and_then(|v| v.as_str()).unwrap_or(""),
-            body.pointer("/data/status").and_then(|v| v.as_str()).unwrap_or(""),
-            body.pointer("/data/sn").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            body.pointer("/data/rc")
+                .and_then(|v| v.as_str())
+                .unwrap_or(""),
+            body.pointer("/data/message")
+                .and_then(|v| v.as_str())
+                .unwrap_or(""),
+            body.pointer("/data/status")
+                .and_then(|v| v.as_str())
+                .unwrap_or(""),
+            body.pointer("/data/sn")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
         ),
         None => ("", "digiflazz http error", "FAILED", None),
     };
@@ -485,16 +492,17 @@ pub async fn inquiry_pasca_digiflazz(
         .bind(rc)
         .bind(message)
         .bind(sn)
-        .bind(body.clone().unwrap_or_else(|| serde_json::json!({ "raw": body_text })))
+        .bind(
+            body.clone()
+                .unwrap_or_else(|| serde_json::json!({ "raw": body_text })),
+        )
         .fetch_one(&state.pool2)
         .await;
 
     if !status.is_success() {
-        return Err(ApiError::Internal(format!(
-            "digiflazz status {}: {}",
-            status, body_text
-        ))
-        .into());
+        return Err(
+            ApiError::Internal(format!("digiflazz status {}: {}", status, body_text)).into(),
+        );
     }
 
     Ok(Json(DigiflazzTransactionResponse {
@@ -539,11 +547,9 @@ async fn call_digiflazz_status_pasca(
     let status = resp.status();
     let body_text = resp.text().await.unwrap_or_default();
     if !status.is_success() {
-        return Err(ApiError::Internal(format!(
-            "digiflazz status {}: {}",
-            status, body_text
-        ))
-        .into());
+        return Err(
+            ApiError::Internal(format!("digiflazz status {}: {}", status, body_text)).into(),
+        );
     }
 
     Ok(serde_json::from_str::<serde_json::Value>(&body_text)
@@ -555,8 +561,8 @@ pub async fn status_pasca_digiflazz(
     Extension(claims): Extension<Claims>,
     Path(ref_id): Path<String>,
 ) -> ApiResult<Json<DigiflazzTransactionResponse>> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| ApiError::Unauthorized("bad subject".into()))?;
+    let user_id =
+        Uuid::parse_str(&claims.sub).map_err(|_| ApiError::Unauthorized("bad subject".into()))?;
 
     let tx_row = sqlx::query(
         "SELECT ref_id, buyer_sku_code, customer_no, product_type, price FROM sp_get_digiflazz_transaction_by_ref_id($1)",
@@ -568,10 +574,14 @@ pub async fn status_pasca_digiflazz(
 
     let (buyer_sku_code, customer_no, product_type, price) = match tx_row {
         Some(row) => (
-            row.try_get::<String, _>("buyer_sku_code").map_err(ApiError::from)?,
-            row.try_get::<String, _>("customer_no").map_err(ApiError::from)?,
-            row.try_get::<String, _>("product_type").map_err(ApiError::from)?,
-            row.try_get::<BigDecimal, _>("price").map_err(ApiError::from)?,
+            row.try_get::<String, _>("buyer_sku_code")
+                .map_err(ApiError::from)?,
+            row.try_get::<String, _>("customer_no")
+                .map_err(ApiError::from)?,
+            row.try_get::<String, _>("product_type")
+                .map_err(ApiError::from)?,
+            row.try_get::<BigDecimal, _>("price")
+                .map_err(ApiError::from)?,
         ),
         None => {
             return Err(ApiError::NotFound("transaction not found".into()).into());
@@ -600,13 +610,20 @@ pub async fn status_pasca_digiflazz(
     .await
     .map_err(ApiError::from)?;
 
-    let body =
-        call_digiflazz_status_pasca(&state, &buyer_sku_code, &customer_no, &ref_id).await?;
+    let body = call_digiflazz_status_pasca(&state, &buyer_sku_code, &customer_no, &ref_id).await?;
     let (rc, message, status_txt, sn) = (
-        body.pointer("/data/rc").and_then(|v| v.as_str()).unwrap_or(""),
-        body.pointer("/data/message").and_then(|v| v.as_str()).unwrap_or(""),
-        body.pointer("/data/status").and_then(|v| v.as_str()).unwrap_or(""),
-        body.pointer("/data/sn").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        body.pointer("/data/rc")
+            .and_then(|v| v.as_str())
+            .unwrap_or(""),
+        body.pointer("/data/message")
+            .and_then(|v| v.as_str())
+            .unwrap_or(""),
+        body.pointer("/data/status")
+            .and_then(|v| v.as_str())
+            .unwrap_or(""),
+        body.pointer("/data/sn")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
     );
     let _ = sqlx::query("SELECT sp_update_digiflazz_transaction_status($1,$2,$3,$4,$5,$6)")
         .bind(tx_id)
@@ -639,8 +656,8 @@ pub async fn pay_pasca_digiflazz(
         .clone()
         .ok_or_else(|| ApiError::BadRequest("ref_id is required".into()))?;
 
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| ApiError::Unauthorized("bad subject".into()))?;
+    let user_id =
+        Uuid::parse_str(&claims.sub).map_err(|_| ApiError::Unauthorized("bad subject".into()))?;
     verify_account_pin(&state, user_id, req.account_id, &pin).await?;
 
     let tx_row = sqlx::query(
@@ -655,7 +672,9 @@ pub async fn pay_pasca_digiflazz(
             let nominal_str = row
                 .try_get::<BigDecimal, _>("amount")
                 .map_err(ApiError::from)?;
-            let price_str = row.try_get::<BigDecimal, _>("price").map_err(ApiError::from)?;
+            let price_str = row
+                .try_get::<BigDecimal, _>("price")
+                .map_err(ApiError::from)?;
             let nominal_val = nominal_str.to_string().parse::<i64>().unwrap_or(0);
             let amount_val = price_str.to_string().parse::<i64>().unwrap_or(0);
             (
@@ -811,11 +830,9 @@ pub async fn pay_pasca_digiflazz(
             .bind(body.unwrap_or_else(|| serde_json::json!({ "raw": body_text })))
             .fetch_one(&state.pool2)
             .await;
-        return Err(ApiError::Internal(format!(
-            "digiflazz status {}: {}",
-            status, body_text
-        ))
-        .into());
+        return Err(
+            ApiError::Internal(format!("digiflazz status {}: {}", status, body_text)).into(),
+        );
     }
 
     let status_body =
@@ -977,20 +994,26 @@ async fn handle_digiflazz_status(
             .bind(body.unwrap_or_else(|| serde_json::json!({ "raw": body_text })))
             .fetch_one(&state.pool2)
             .await;
-        return Err(ApiError::Internal(format!(
-            "digiflazz status {}: {}",
-            status, body_text
-        ))
-        .into());
+        return Err(
+            ApiError::Internal(format!("digiflazz status {}: {}", status, body_text)).into(),
+        );
     }
 
     let body = serde_json::from_str::<serde_json::Value>(&body_text)
         .map_err(|e| ApiError::Internal(e.to_string()))?;
     let (rc, message, status_txt, sn) = (
-        body.pointer("/data/rc").and_then(|v| v.as_str()).unwrap_or(""),
-        body.pointer("/data/message").and_then(|v| v.as_str()).unwrap_or(""),
-        body.pointer("/data/status").and_then(|v| v.as_str()).unwrap_or(""),
-        body.pointer("/data/sn").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        body.pointer("/data/rc")
+            .and_then(|v| v.as_str())
+            .unwrap_or(""),
+        body.pointer("/data/message")
+            .and_then(|v| v.as_str())
+            .unwrap_or(""),
+        body.pointer("/data/status")
+            .and_then(|v| v.as_str())
+            .unwrap_or(""),
+        body.pointer("/data/sn")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
     );
     if is_failed_status(status_txt) {
         reversal(
@@ -1029,8 +1052,8 @@ pub async fn topup_digiflazz(
         return Err(ApiError::BadRequest("pin must be 6 digits".into()).into());
     }
 
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| ApiError::Unauthorized("bad subject".into()))?;
+    let user_id =
+        Uuid::parse_str(&claims.sub).map_err(|_| ApiError::Unauthorized("bad subject".into()))?;
     verify_account_pin(&state, user_id, req.account_id, &pin).await?;
 
     let product_row = sqlx::query(
@@ -1189,11 +1212,9 @@ pub async fn topup_digiflazz(
             .bind(body.unwrap_or_else(|| serde_json::json!({ "raw": body_text })))
             .fetch_one(&state.pool2)
             .await;
-        return Err(ApiError::Internal(format!(
-            "digiflazz status {}: {}",
-            status, body_text
-        ))
-        .into());
+        return Err(
+            ApiError::Internal(format!("digiflazz status {}: {}", status, body_text)).into(),
+        );
     }
 
     sleep(Duration::from_secs(1)).await;
@@ -1218,8 +1239,8 @@ pub async fn cek_status_digiflazz(
     Extension(claims): Extension<Claims>,
     Path(ref_id): Path<String>,
 ) -> ApiResult<Json<DigiflazzTransactionResponse>> {
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| ApiError::Unauthorized("bad subject".into()))?;
+    let user_id =
+        Uuid::parse_str(&claims.sub).map_err(|_| ApiError::Unauthorized("bad subject".into()))?;
 
     let tx_row = sqlx::query(
         "SELECT ref_id, buyer_sku_code, customer_no, product_type, price FROM sp_get_digiflazz_transaction_by_ref_id($1)",
@@ -1231,10 +1252,14 @@ pub async fn cek_status_digiflazz(
 
     let (buyer_sku_code, customer_no, product_type, price) = match tx_row {
         Some(row) => (
-            row.try_get::<String, _>("buyer_sku_code").map_err(ApiError::from)?,
-            row.try_get::<String, _>("customer_no").map_err(ApiError::from)?,
-            row.try_get::<String, _>("product_type").map_err(ApiError::from)?,
-            row.try_get::<BigDecimal, _>("price").map_err(ApiError::from)?,
+            row.try_get::<String, _>("buyer_sku_code")
+                .map_err(ApiError::from)?,
+            row.try_get::<String, _>("customer_no")
+                .map_err(ApiError::from)?,
+            row.try_get::<String, _>("product_type")
+                .map_err(ApiError::from)?,
+            row.try_get::<BigDecimal, _>("price")
+                .map_err(ApiError::from)?,
         ),
         None => {
             return Err(ApiError::NotFound("transaction not found".into()).into());
@@ -1304,20 +1329,26 @@ pub async fn cek_status_digiflazz(
             .bind(serde_json::json!({ "raw": body_text }))
             .fetch_one(&state.pool2)
             .await;
-        return Err(ApiError::Internal(format!(
-            "digiflazz status {}: {}",
-            status, body_text
-        ))
-        .into());
+        return Err(
+            ApiError::Internal(format!("digiflazz status {}: {}", status, body_text)).into(),
+        );
     }
 
     let body = serde_json::from_str::<serde_json::Value>(&body_text)
         .map_err(|e| ApiError::Internal(e.to_string()))?;
     let (rc, message, status_txt, sn) = (
-        body.pointer("/data/rc").and_then(|v| v.as_str()).unwrap_or(""),
-        body.pointer("/data/message").and_then(|v| v.as_str()).unwrap_or(""),
-        body.pointer("/data/status").and_then(|v| v.as_str()).unwrap_or(""),
-        body.pointer("/data/sn").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        body.pointer("/data/rc")
+            .and_then(|v| v.as_str())
+            .unwrap_or(""),
+        body.pointer("/data/message")
+            .and_then(|v| v.as_str())
+            .unwrap_or(""),
+        body.pointer("/data/status")
+            .and_then(|v| v.as_str())
+            .unwrap_or(""),
+        body.pointer("/data/sn")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
     );
     let _ = sqlx::query("SELECT sp_update_digiflazz_transaction_status($1,$2,$3,$4,$5,$6)")
         .bind(tx_id)

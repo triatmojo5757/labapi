@@ -10,7 +10,10 @@ pub struct Claims {
 }
 
 #[derive(Clone, Copy)]
-pub enum Role { Admin, User }
+pub enum Role {
+    Admin,
+    User,
+}
 impl Role {
     pub fn from_str(s: &str) -> Option<Self> {
         match s {

@@ -1,8 +1,11 @@
 use argon2::{password_hash::rand_core::OsRng, Argon2};
-use axum::{extract::{Path, State}, Json};
+use axum::{
+    extract::{Path, State},
+    Json,
+};
 use base64::Engine;
 use chrono::{Duration, Utc};
-use jsonwebtoken::{encode, Header, EncodingKey};
+use jsonwebtoken::{encode, EncodingKey, Header};
 use password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
@@ -16,11 +19,20 @@ use crate::{
 };
 
 #[derive(Deserialize)]
-pub struct RegisterReq { pub email: String, pub password: String, pub role: Option<String> }
+pub struct RegisterReq {
+    pub email: String,
+    pub password: String,
+    pub role: Option<String>,
+}
 #[derive(Serialize)]
-pub struct RegisterRes { pub user_id: Uuid }
+pub struct RegisterRes {
+    pub user_id: Uuid,
+}
 #[derive(Deserialize)]
-pub struct LoginReq { pub email: String, pub password: String }
+pub struct LoginReq {
+    pub email: String,
+    pub password: String,
+}
 #[derive(Serialize)]
 pub struct TokenRes {
     pub token_id: Uuid,
@@ -30,7 +42,10 @@ pub struct TokenRes {
     pub token_type: String,
 }
 #[derive(Deserialize)]
-pub struct RefreshReq { pub user_id: Uuid, pub refresh_token: String }
+pub struct RefreshReq {
+    pub user_id: Uuid,
+    pub refresh_token: String,
+}
 
 #[derive(Deserialize)]
 pub struct PasswordResetReq {
@@ -50,7 +65,10 @@ pub struct CheckEmailRes {
     pub exists: bool,
 }
 
-pub async fn register(State(state): State<SharedState>, Json(req): Json<RegisterReq>) -> ApiResult<Json<RegisterRes>> {
+pub async fn register(
+    State(state): State<SharedState>,
+    Json(req): Json<RegisterReq>,
+) -> ApiResult<Json<RegisterRes>> {
     let role = req.role.clone().unwrap_or_else(|| "user".to_string());
     if role != "admin" && role != "user" {
         return Err(ApiError::BadRequest("role must be admin|user".into()).into());
@@ -87,7 +105,10 @@ pub async fn register(State(state): State<SharedState>, Json(req): Json<Register
     Ok(Json(RegisterRes { user_id: uid }))
 }
 
-pub async fn login(State(state): State<SharedState>, Json(req): Json<LoginReq>) -> ApiResult<Json<TokenRes>> {
+pub async fn login(
+    State(state): State<SharedState>,
+    Json(req): Json<LoginReq>,
+) -> ApiResult<Json<TokenRes>> {
     let auth = sqlx::query!(
         r#"SELECT user_id, password_hash, role, is_active
            FROM lab_fun_get_user_auth($1)"#,
@@ -117,8 +138,12 @@ pub async fn login(State(state): State<SharedState>, Json(req): Json<LoginReq>) 
         exp,
         jti,
     };
-    let access_token = encode(&Header::default(), &claims, &EncodingKey::from_secret(state.jwt_secret.as_bytes()))
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    let access_token = encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(state.jwt_secret.as_bytes()),
+    )
+    .map_err(|e| ApiError::Internal(e.to_string()))?;
 
     use rand_core::RngCore;
     let mut bytes = [0u8; 32];
@@ -142,7 +167,14 @@ pub async fn login(State(state): State<SharedState>, Json(req): Json<LoginReq>) 
     let token_id: Uuid = rec.get("token_id");
 
     let meta = serde_json::json!({ "token_id": token_id, "role": claims.role });
-    audit(&state, Some(Uuid::parse_str(&claims.sub).unwrap()), "login", None, Some(meta)).await;
+    audit(
+        &state,
+        Some(Uuid::parse_str(&claims.sub).unwrap()),
+        "login",
+        None,
+        Some(meta),
+    )
+    .await;
 
     Ok(Json(TokenRes {
         token_id,
@@ -153,7 +185,10 @@ pub async fn login(State(state): State<SharedState>, Json(req): Json<LoginReq>) 
     }))
 }
 
-pub async fn refresh(State(state): State<SharedState>, Json(req): Json<RefreshReq>) -> ApiResult<Json<serde_json::Value>> {
+pub async fn refresh(
+    State(state): State<SharedState>,
+    Json(req): Json<RefreshReq>,
+) -> ApiResult<Json<serde_json::Value>> {
     let current_sha = crate::utils::sha256_bytes(&req.refresh_token);
 
     use rand_core::RngCore;
@@ -166,33 +201,41 @@ pub async fn refresh(State(state): State<SharedState>, Json(req): Json<RefreshRe
     let ua = "unknown".to_string();
     let ip = "unknown".to_string();
 
-    let rec = sqlx::query(
-        r#"SELECT lab_fun_consume_refresh_token($1,$2,$3,$4,$5,$6) AS new_token_id"#,
-    )
-    .bind(req.user_id)
-    .bind(current_sha)
-    .bind(new_sha.clone())
-    .bind(new_expires_at)
-    .bind(ua)
-    .bind(ip)
-    .fetch_one(&state.pool)
-    .await
-    .map_err(|e| {
-        let msg = e.to_string();
-        if msg.contains("REFRESH_INVALID_OR_EXPIRED") {
-            ApiError::Unauthorized("invalid or expired refresh token".into())
-        } else {
-            ApiError::Internal(msg)
-        }
-    })?;
+    let rec =
+        sqlx::query(r#"SELECT lab_fun_consume_refresh_token($1,$2,$3,$4,$5,$6) AS new_token_id"#)
+            .bind(req.user_id)
+            .bind(current_sha)
+            .bind(new_sha.clone())
+            .bind(new_expires_at)
+            .bind(ua)
+            .bind(ip)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|e| {
+                let msg = e.to_string();
+                if msg.contains("REFRESH_INVALID_OR_EXPIRED") {
+                    ApiError::Unauthorized("invalid or expired refresh token".into())
+                } else {
+                    ApiError::Internal(msg)
+                }
+            })?;
     let _new_token_id: Uuid = rec.get("new_token_id");
 
     let expires_in = 60 * 15;
     let exp = (Utc::now() + Duration::seconds(expires_in)).timestamp() as usize;
     let jti = Uuid::new_v4();
-    let claims = Claims { sub: req.user_id.to_string(), role: "user".into(), exp, jti };
-    let access_token = encode(&Header::default(), &claims, &EncodingKey::from_secret(state.jwt_secret.as_bytes()))
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    let claims = Claims {
+        sub: req.user_id.to_string(),
+        role: "user".into(),
+        exp,
+        jti,
+    };
+    let access_token = encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(state.jwt_secret.as_bytes()),
+    )
+    .map_err(|e| ApiError::Internal(e.to_string()))?;
 
     let meta = serde_json::json!({ "rotated": true });
     audit(&state, Some(req.user_id), "refresh", None, Some(meta)).await;
@@ -215,16 +258,27 @@ pub async fn password_reset(
         .map_err(|e| ApiError::Internal(e.to_string()))?
         .to_string();
 
-    let row = sqlx::query!("SELECT lab_fun_update_password($1,$2) AS user_id", req.email, new_hash)
-        .fetch_one(&state.pool)
-        .await
-        .map_err(ApiError::from)?;
+    let row = sqlx::query!(
+        "SELECT lab_fun_update_password($1,$2) AS user_id",
+        req.email,
+        new_hash
+    )
+    .fetch_one(&state.pool)
+    .await
+    .map_err(ApiError::from)?;
 
     let user_id = row
         .user_id
         .ok_or_else(|| ApiError::Internal("missing user_id from lab_fun_update_password".into()))?;
 
-    audit(&state, Some(user_id), "password_reset", Some(&req.email), None).await;
+    audit(
+        &state,
+        Some(user_id),
+        "password_reset",
+        Some(&req.email),
+        None,
+    )
+    .await;
     Ok(Json(PasswordResetRes { user_id }))
 }
 
@@ -232,15 +286,16 @@ pub async fn check_email(
     State(state): State<SharedState>,
     Json(req): Json<CheckEmailReq>,
 ) -> ApiResult<Json<CheckEmailRes>> {
-    let exists: Option<bool> = sqlx::query_scalar(
-        "SELECT COALESCE(corp_sp_get_email($1), false) AS exists",
-    )
-    .bind(req.email)
-    .fetch_optional(&state.pool2)
-    .await
-    .map_err(ApiError::from)?;
+    let exists: Option<bool> =
+        sqlx::query_scalar("SELECT COALESCE(corp_sp_get_email($1), false) AS exists")
+            .bind(req.email)
+            .fetch_optional(&state.pool2)
+            .await
+            .map_err(ApiError::from)?;
 
-    Ok(Json(CheckEmailRes { exists: exists.unwrap_or(false) }))
+    Ok(Json(CheckEmailRes {
+        exists: exists.unwrap_or(false),
+    }))
 }
 
 pub async fn logout(

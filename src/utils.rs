@@ -1,9 +1,6 @@
 use uuid::Uuid;
 
-use crate::{
-    app_state::SharedState,
-    errors::ApiError,
-};
+use crate::{app_state::SharedState, errors::ApiError};
 
 /// Helper audit (non-blocking log; error di-log saja)
 pub async fn audit(
@@ -51,15 +48,14 @@ pub async fn verify_account_pin(
         return Err(ApiError::BadRequest("pin must be 6 digits".into()));
     }
 
-    let ok: Option<bool> = sqlx::query_scalar(
-        r#"SELECT lab_fun_verify_account_pin($1,$2,$3) AS ok"#,
-    )
-    .bind(user_id)
-    .bind(account_id)
-    .bind(pin)
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(ApiError::from)?;
+    let ok: Option<bool> =
+        sqlx::query_scalar(r#"SELECT lab_fun_verify_account_pin($1,$2,$3) AS ok"#)
+            .bind(user_id)
+            .bind(account_id)
+            .bind(pin)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(ApiError::from)?;
 
     if ok.unwrap_or(false) {
         Ok(())

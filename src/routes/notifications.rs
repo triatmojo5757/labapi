@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
-use axum::{extract::State, Json};
-use chrono::Utc;
-use jsonwebtoken::{Algorithm, EncodingKey, Header};
-use serde::{Deserialize, Serialize};
 use crate::{
     app_state::SharedState,
     errors::{ApiError, ApiResult},
 };
+use axum::{extract::State, Json};
+use chrono::Utc;
+use jsonwebtoken::{Algorithm, EncodingKey, Header};
+use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
 pub struct SendNotificationReq {
@@ -40,9 +40,10 @@ pub async fn send_notification(
     State(state): State<SharedState>,
     Json(req): Json<SendNotificationReq>,
 ) -> ApiResult<Json<SendNotificationRes>> {
-    let firebase = state.firebase.as_ref().ok_or_else(|| {
-        ApiError::Internal("firebase service account not configured".into())
-    })?;
+    let firebase = state
+        .firebase
+        .as_ref()
+        .ok_or_else(|| ApiError::Internal("firebase service account not configured".into()))?;
 
     if req.token.trim().is_empty() {
         return Err(ApiError::BadRequest("token is required".into()).into());
@@ -56,7 +57,10 @@ pub async fn send_notification(
     let claims = JwtClaims {
         iss: &firebase.client_email,
         scope: "https://www.googleapis.com/auth/firebase.messaging",
-        aud: firebase.token_uri.as_deref().unwrap_or("https://oauth2.googleapis.com/token"),
+        aud: firebase
+            .token_uri
+            .as_deref()
+            .unwrap_or("https://oauth2.googleapis.com/token"),
         iat,
         exp,
     };
@@ -70,7 +74,10 @@ pub async fn send_notification(
     .map_err(|e| ApiError::Internal(e.to_string()))?;
 
     let client = reqwest::Client::new();
-    let token_uri = firebase.token_uri.as_deref().unwrap_or("https://oauth2.googleapis.com/token");
+    let token_uri = firebase
+        .token_uri
+        .as_deref()
+        .unwrap_or("https://oauth2.googleapis.com/token");
     let oauth = client
         .post(token_uri)
         .form(&[
