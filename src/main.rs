@@ -191,6 +191,14 @@ async fn main() -> anyhow::Result<()> {
             get(routes::investment::get_master_saham),
         )
         .route(
+            "/investment/check_grade_saham",
+            get(routes::investment::check_grade_saham),
+        )
+        .route(
+            "/investment/insert_saham_tf",
+            post(routes::investment::insert_saham_tf),
+        )
+        .route(
             "/investment/invest_today",
             get(routes::investment::get_invest_today),
         )

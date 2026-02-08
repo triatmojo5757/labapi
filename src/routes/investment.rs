@@ -82,6 +82,32 @@ pub struct InvestTodayRes {
     pub source_type: String,
 }
 
+#[derive(Deserialize)]
+pub struct CheckGradeSahamQuery {
+    pub nik: i64,
+    pub id_store: i32,
+}
+
+#[derive(Serialize)]
+pub struct CheckGradeSahamRes {
+    pub status: bool,
+    pub message: String,
+}
+
+#[derive(Deserialize)]
+pub struct InsertSahamTfReq {
+    pub nik: i64,
+    pub id_store: i32,
+    pub amount_tf: String,
+}
+
+#[derive(Serialize)]
+pub struct InsertSahamTfRes {
+    pub status: bool,
+    pub message: String,
+    pub new_id: Option<i32>,
+}
+
 pub async fn get_master_saham(
     State(state): State<SharedState>,
     Extension(_claims): Extension<Claims>,
@@ -137,6 +163,60 @@ pub async fn get_master_saham(
     }
 
     Ok(Json(items))
+}
+
+pub async fn check_grade_saham(
+    State(state): State<SharedState>,
+    Extension(_claims): Extension<Claims>,
+    Query(req): Query<CheckGradeSahamQuery>,
+) -> ApiResult<Json<CheckGradeSahamRes>> {
+    let row = sqlx::query(
+        r#"
+        SELECT status, message
+        FROM public.corp_check_grade_saham_msg($1::bigint, $2::integer)
+        "#,
+    )
+    .bind(req.nik)
+    .bind(req.id_store)
+    .fetch_one(&state.pool2)
+    .await
+    .map_err(ApiError::from)?;
+
+    Ok(Json(CheckGradeSahamRes {
+        status: row.try_get("status").map_err(ApiError::from)?,
+        message: row
+            .try_get::<Option<String>, _>("message")
+            .map_err(ApiError::from)?
+            .unwrap_or_default(),
+    }))
+}
+
+pub async fn insert_saham_tf(
+    State(state): State<SharedState>,
+    Extension(_claims): Extension<Claims>,
+    Json(req): Json<InsertSahamTfReq>,
+) -> ApiResult<Json<InsertSahamTfRes>> {
+    let row = sqlx::query(
+        r#"
+        SELECT status, message, new_id
+        FROM public.corp_save_t_saham_tf_only($1::bigint, $2::integer, $3::text)
+        "#,
+    )
+    .bind(req.nik)
+    .bind(req.id_store)
+    .bind(&req.amount_tf)
+    .fetch_one(&state.pool2)
+    .await
+    .map_err(ApiError::from)?;
+
+    Ok(Json(InsertSahamTfRes {
+        status: row.try_get("status").map_err(ApiError::from)?,
+        message: row
+            .try_get::<Option<String>, _>("message")
+            .map_err(ApiError::from)?
+            .unwrap_or_default(),
+        new_id: row.try_get::<Option<i32>, _>("new_id").map_err(ApiError::from)?,
+    }))
 }
 
 pub async fn get_invest_today(
