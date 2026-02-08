@@ -72,6 +72,16 @@ pub struct DashboardDevidenSummaryRes {
     pub items: Vec<DashboardDevidenRes>,
 }
 
+#[derive(Serialize)]
+pub struct InvestTodayRes {
+    pub id: i32,
+    pub nama: String,
+    pub cmp_desc: String,
+    pub no_rek_onepay: String,
+    pub tgl: NaiveDate,
+    pub source_type: String,
+}
+
 pub async fn get_master_saham(
     State(state): State<SharedState>,
     Extension(_claims): Extension<Claims>,
@@ -123,6 +133,41 @@ pub async fn get_master_saham(
             status: row.try_get("status").unwrap_or_default(),
             sisa_waktu: row.try_get("sisa_waktu").unwrap_or_default(),
             month_dividen: row.try_get("month_dividen").unwrap_or_default(),
+        });
+    }
+
+    Ok(Json(items))
+}
+
+pub async fn get_invest_today(
+    State(state): State<SharedState>,
+    Extension(_claims): Extension<Claims>,
+) -> ApiResult<Json<Vec<InvestTodayRes>>> {
+    let rows = sqlx::query(
+        r#"
+        SELECT
+            id,
+            nama,
+            cmp_desc,
+            no_rek_onepay,
+            tgl,
+            source_type
+        FROM public.corp_sp_get_invest_today()
+        "#,
+    )
+    .fetch_all(&state.pool2)
+    .await
+    .map_err(ApiError::from)?;
+
+    let mut items = Vec::with_capacity(rows.len());
+    for row in rows {
+        items.push(InvestTodayRes {
+            id: row.try_get("id").map_err(ApiError::from)?,
+            nama: row.try_get("nama").unwrap_or_default(),
+            cmp_desc: row.try_get("cmp_desc").unwrap_or_default(),
+            no_rek_onepay: row.try_get("no_rek_onepay").unwrap_or_default(),
+            tgl: row.try_get("tgl").map_err(ApiError::from)?,
+            source_type: row.try_get("source_type").unwrap_or_default(),
         });
     }
 
