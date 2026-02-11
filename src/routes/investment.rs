@@ -108,6 +108,36 @@ pub struct InsertSahamTfRes {
     pub new_id: Option<i32>,
 }
 
+#[derive(Deserialize)]
+pub struct NeracaQuery {
+    pub id_store: i32,
+}
+
+#[derive(Serialize)]
+pub struct NeracaRes {
+    pub pdf: String,
+}
+
+pub async fn get_neraca(
+    State(state): State<SharedState>,
+    Extension(_claims): Extension<Claims>,
+    Query(req): Query<NeracaQuery>,
+) -> ApiResult<Json<NeracaRes>> {
+    let row = sqlx::query(
+        r#"
+        select pdf from corp_pdf_neraca($1::integer)
+        "#,
+    )
+    .bind(req.id_store)
+    .fetch_one(&state.pool2)
+    .await
+    .map_err(ApiError::from)?;
+
+    Ok(Json(NeracaRes {
+        pdf: row.try_get("pdf").map_err(ApiError::from)?,
+    }))
+}
+
 pub async fn get_master_saham(
     State(state): State<SharedState>,
     Extension(_claims): Extension<Claims>,
