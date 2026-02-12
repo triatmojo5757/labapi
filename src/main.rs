@@ -110,7 +110,11 @@ async fn main() -> anyhow::Result<()> {
             "/journals/list_all",
             get(routes::journals::list_journals_list_all),
         )
-        .route("/accounts/verify", post(routes::accounts::verify_account));
+        .route("/accounts/verify", post(routes::accounts::verify_account))
+        .route(
+            "/notifications/send-public",
+            post(routes::notifications::send_notification_public),
+        );
 
     // === Auth endpoints (juga public) ===
     let auth_routes = Router::new()
