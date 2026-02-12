@@ -25,9 +25,7 @@ pub struct SendNotificationReq {
 #[derive(Deserialize)]
 pub struct SendNotificationStoreReq {
     pub id_store: i32,
-    pub title: String,
-    pub body: String,
-    pub data: Option<HashMap<String, String>>,
+    pub id_cmp: i32,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -39,6 +37,12 @@ pub struct SendNotificationRes {
 pub struct SendNotificationStoreRes {
     pub sent: usize,
     pub names: Vec<String>,
+}
+
+struct NotifPayload {
+    title: String,
+    body: String,
+    niks: Vec<String>,
 }
 
 struct FcmSendError {
@@ -81,16 +85,13 @@ pub async fn send_notification_public(
     if req.id_store <= 0 {
         return Err(ApiError::BadRequest("id_store is required".into()).into());
     }
-    if req.title.trim().is_empty() || req.body.trim().is_empty() {
-        return Err(ApiError::BadRequest("title and body are required".into()).into());
+    if req.id_cmp <= 0 {
+        return Err(ApiError::BadRequest("id_cmp is required".into()).into());
     }
 
-    let niks = fetch_store_niks(&state, req.id_store).await?;
-    if niks.is_empty() {
-        return Err(ApiError::NotFound("store not found".into()).into());
-    }
+    let notif = fetch_notif_payload(&state, req.id_store, req.id_cmp).await?;
 
-    let tokens = fetch_fcm_tokens(&state, &niks).await?;
+    let tokens = fetch_fcm_tokens(&state, &notif.niks).await?;
     if tokens.is_empty() {
         return Err(ApiError::NotFound("fcm token not found".into()).into());
     }
@@ -103,9 +104,8 @@ pub async fn send_notification_public(
     let access_token = Arc::new(fetch_access_token(firebase).await?);
     let client = reqwest::Client::new();
     let firebase = Arc::clone(firebase);
-    let title = Arc::new(req.title);
-    let body = Arc::new(req.body);
-    let data = req.data.map(Arc::new);
+    let title = Arc::new(notif.title);
+    let body = Arc::new(notif.body);
 
     let semaphore = Arc::new(Semaphore::new(FCM_SEND_CONCURRENCY));
     let mut joinset = JoinSet::new();
@@ -118,7 +118,6 @@ pub async fn send_notification_public(
         let access_token = Arc::clone(&access_token);
         let title = Arc::clone(&title);
         let body = Arc::clone(&body);
-        let data = data.clone();
 
         joinset.spawn(async move {
             let _permit = permit;
@@ -129,7 +128,7 @@ pub async fn send_notification_public(
                 &token,
                 title.as_str(),
                 body.as_str(),
-                data.as_ref().map(|d| d.as_ref()),
+                None,
             )
             .await
         });
@@ -191,15 +190,32 @@ async fn send_notification_inner(
     Ok(name)
 }
 
-async fn fetch_store_niks(state: &SharedState, id_store: i32) -> ApiResult<Vec<String>> {
-    let rows = sqlx::query("SELECT * FROM corp_sp_get_saham_store($1)")
+async fn fetch_notif_payload(
+    state: &SharedState,
+    id_store: i32,
+    id_cmp: i32,
+) -> ApiResult<NotifPayload> {
+    let rows = sqlx::query("SELECT * FROM public.corp_sp_get_notif_deviden_saham($1,$2)")
         .bind(id_store)
+        .bind(id_cmp)
         .fetch_all(&state.pool2)
         .await
         .map_err(ApiError::from)?;
 
+    if rows.is_empty() {
+        return Err(ApiError::NotFound("store not found".into()).into());
+    }
+
     let mut set = HashSet::new();
+    let mut title: Option<String> = None;
+    let mut body: Option<String> = None;
     for row in rows {
+        if title.is_none() {
+            title = row.try_get("name_store").map_err(ApiError::from)?;
+        }
+        if body.is_none() {
+            body = row.try_get("pesan").map_err(ApiError::from)?;
+        }
         let nik: Option<i64> = row.try_get("nik").map_err(ApiError::from)?;
         if let Some(nik) = nik {
             let nik = nik.to_string();
@@ -209,7 +225,17 @@ async fn fetch_store_niks(state: &SharedState, id_store: i32) -> ApiResult<Vec<S
         }
     }
 
-    Ok(set.into_iter().collect())
+    let title = title.unwrap_or_default().trim().to_string();
+    let body = body.unwrap_or_default().trim().to_string();
+    if title.is_empty() || body.is_empty() {
+        return Err(ApiError::NotFound("notification template not found".into()).into());
+    }
+
+    Ok(NotifPayload {
+        title,
+        body,
+        niks: set.into_iter().collect(),
+    })
 }
 
 async fn fetch_fcm_tokens(state: &SharedState, niks: &[String]) -> ApiResult<Vec<String>> {
