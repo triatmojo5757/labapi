@@ -111,7 +111,6 @@ pub struct InsertSahamTfRes {
 #[derive(Deserialize)]
 pub struct NeracaQuery {
     pub id_store: i32,
-    pub tahun: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -127,11 +126,10 @@ pub async fn get_neraca(
 ) -> ApiResult<Json<NeracaRes>> {
     let row = sqlx::query(
         r#"
-        select tahun, pdf from corp_pdf_neraca($1::integer, $2::varchar)
+        select tahun, pdf from corp_pdf_neraca($1::integer)
         "#,
     )
     .bind(req.id_store)
-    .bind(req.tahun.unwrap_or_default())
     .fetch_one(&state.pool2)
     .await
     .map_err(ApiError::from)?;
