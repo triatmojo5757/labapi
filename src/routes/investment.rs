@@ -372,3 +372,78 @@ pub async fn get_dashboard_deviden(
         items,
     }))
 }
+
+#[derive(Deserialize)]
+pub struct ListAkunPelQuery {
+    pub search: Option<String>,
+    pub page: i32,
+    pub limit: i32,
+    pub user_id: i32,
+    pub category: String,
+}
+
+#[derive(Serialize, sqlx::FromRow)]
+pub struct AkunPelRes {
+    pub nama: String,
+    pub id_pel: String,
+}
+
+pub async fn get_list_akun_pel(
+    State(state): State<SharedState>,
+    Extension(claims): Extension<Claims>,
+    Query(params): Query<ListAkunPelQuery>,
+) -> ApiResult<Json<Vec<AkunPelRes>>> {
+
+    let var_where = match params.search {
+        Some(ref s) if !s.is_empty() => format!(" AND (ca.nama ILIKE '%{}%' OR ca.id_pel ILIKE '%{}%')", s, s),
+        _ => "".to_string(),
+    };
+
+    let rows = sqlx::query_as::<_, AkunPelRes>(
+        "SELECT nama, id_pel FROM corp_list_akun_pel($1::text, $2::int4, $3::int4, $4::int4, $5::text)"
+    )
+    .bind(var_where)
+    .bind(params.page)
+    .bind(params.limit)
+    .bind(params.user_id)
+    .bind(params.category)
+    .fetch_all(&state.pool2)
+    .await
+    .map_err(|e| {
+        tracing::error!("Database error: {}", e);
+        ApiError::Internal("Failed to fetch account list".into())
+    })?;
+
+    Ok(Json(rows))
+}
+
+#[derive(serde::Deserialize)]
+pub struct SaveAkunRequest {
+    pub kategory: String,
+    pub nama: String,
+    pub id_pel: String,
+    pub user_id: i32,
+}
+
+pub async fn save_akun_pel(
+    State(state): State<SharedState>,
+    Extension(claims): Extension<Claims>,
+    Json(payload): Json<SaveAkunRequest>,
+) -> ApiResult<axum::http::StatusCode> {
+    
+    sqlx::query(
+        "SELECT corp_save_akun_pel($1::text, $2::text, $3::text, $4::int4) as result"
+    )
+    .bind(payload.kategory)
+    .bind(payload.nama)
+    .bind(payload.id_pel)
+    .bind(payload.user_id)
+    .fetch_one(&state.pool2)
+    .await
+    .map_err(|e| {
+        tracing::error!("Database error: {}", e);
+        ApiError::Internal("Failed to save account".into())
+    })?;
+
+    Ok(axum::http::StatusCode::CREATED)
+}

@@ -219,6 +219,14 @@ async fn main() -> anyhow::Result<()> {
             get(routes::investment::get_dashboard_deviden),
         )
         .route(
+            "/investment/list_akun_pel",
+            get(routes::investment::get_list_akun_pel),
+        )
+        .route(
+            "/investment/save_akun_pel",
+            post(routes::investment::save_akun_pel),
+        )
+        .route(
             "/notifications/send",
             post(routes::notifications::send_notification),
         )
