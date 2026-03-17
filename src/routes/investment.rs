@@ -249,7 +249,9 @@ pub async fn insert_saham_tf(
             .try_get::<Option<String>, _>("message")
             .map_err(ApiError::from)?
             .unwrap_or_default(),
-        new_id: row.try_get::<Option<i32>, _>("new_id").map_err(ApiError::from)?,
+        new_id: row
+            .try_get::<Option<i32>, _>("new_id")
+            .map_err(ApiError::from)?,
     }))
 }
 
@@ -395,9 +397,11 @@ pub async fn get_list_akun_pel(
     Extension(claims): Extension<Claims>,
     Query(params): Query<ListAkunPelQuery>,
 ) -> ApiResult<Json<Vec<AkunPelRes>>> {
-
     let var_where = match params.search {
-        Some(ref s) if !s.is_empty() => format!(" AND (ca.nama ILIKE '%{}%' OR ca.id_pel ILIKE '%{}%')", s, s),
+        Some(ref s) if !s.is_empty() => format!(
+            " AND (ca.nama ILIKE '%{}%' OR ca.id_pel ILIKE '%{}%')",
+            s, s
+        ),
         _ => "".to_string(),
     };
 
@@ -432,20 +436,17 @@ pub async fn save_akun_pel(
     Extension(claims): Extension<Claims>,
     Json(payload): Json<SaveAkunRequest>,
 ) -> ApiResult<axum::http::StatusCode> {
-    
-    sqlx::query(
-        "SELECT corp_save_akun_pel($1::text, $2::text, $3::text, $4::int4) as result"
-    )
-    .bind(payload.kategory)
-    .bind(payload.nama)
-    .bind(payload.id_pel)
-    .bind(payload.user_id)
-    .fetch_one(&state.pool2)
-    .await
-    .map_err(|e| {
-        tracing::error!("Database error: {}", e);
-        ApiError::Internal("Failed to save account".into())
-    })?;
+    sqlx::query("SELECT corp_save_akun_pel($1::text, $2::text, $3::text, $4::int4) as result")
+        .bind(payload.kategory)
+        .bind(payload.nama)
+        .bind(payload.id_pel)
+        .bind(payload.user_id)
+        .fetch_one(&state.pool2)
+        .await
+        .map_err(|e| {
+            tracing::error!("Database error: {}", e);
+            ApiError::Internal("Failed to save account".into())
+        })?;
 
     Ok(axum::http::StatusCode::CREATED)
 }

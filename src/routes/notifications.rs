@@ -110,9 +110,11 @@ pub async fn send_notification_public(
     let semaphore = Arc::new(Semaphore::new(FCM_SEND_CONCURRENCY));
     let mut joinset = JoinSet::new();
     for token in tokens {
-        let permit = semaphore.clone().acquire_owned().await.map_err(|e| {
-            ApiError::Internal(format!("semaphore acquire failed: {}", e))
-        })?;
+        let permit = semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .map_err(|e| ApiError::Internal(format!("semaphore acquire failed: {}", e)))?;
         let client = client.clone();
         let firebase = Arc::clone(&firebase);
         let access_token = Arc::clone(&access_token);
@@ -142,9 +144,7 @@ pub async fn send_notification_public(
                 continue;
             }
             Ok(Err(err)) => {
-                return Err(
-                    ApiError::Internal(format!("fcm send error: {}", err.body)).into(),
-                );
+                return Err(ApiError::Internal(format!("fcm send error: {}", err.body)).into());
             }
             Err(err) => {
                 return Err(ApiError::Internal(err.to_string()).into());
@@ -259,7 +259,9 @@ async fn fetch_fcm_tokens(state: &SharedState, niks: &[String]) -> ApiResult<Vec
     Ok(set.into_iter().collect())
 }
 
-async fn fetch_access_token(firebase: &crate::app_state::FirebaseServiceAccount) -> ApiResult<String> {
+async fn fetch_access_token(
+    firebase: &crate::app_state::FirebaseServiceAccount,
+) -> ApiResult<String> {
     let iat = Utc::now().timestamp();
     let exp = iat + 3600;
     let claims = JwtClaims {
@@ -318,17 +320,9 @@ async fn send_fcm_message(
     body: &str,
     data: Option<&HashMap<String, String>>,
 ) -> ApiResult<SendNotificationRes> {
-    let name = send_fcm_message_raw(
-        client,
-        firebase,
-        access_token,
-        token,
-        title,
-        body,
-        data,
-    )
-    .await
-    .map_err(|err| ApiError::Internal(format!("fcm send error: {}", err.body)))?;
+    let name = send_fcm_message_raw(client, firebase, access_token, token, title, body, data)
+        .await
+        .map_err(|err| ApiError::Internal(format!("fcm send error: {}", err.body)))?;
 
     Ok(name)
 }

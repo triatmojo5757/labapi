@@ -168,6 +168,10 @@ async fn main() -> anyhow::Result<()> {
             "/digiflazz/products",
             get(routes::digiflaz::list_digiflazz_products),
         )
+        .route(
+            "/digiflazz/token-pln",
+            get(routes::digiflaz::get_token_pln).post(routes::digiflaz::add_token_pln),
+        )
         .route("/digiflazz/cek-saldo", get(routes::digiflaz::cek_saldo))
         .route(
             "/digiflazz/inquiry-pln",
@@ -194,10 +198,7 @@ async fn main() -> anyhow::Result<()> {
             "/investment/master_saham",
             get(routes::investment::get_master_saham),
         )
-        .route(
-            "/investment/neraca",
-            get(routes::investment::get_neraca),
-        )
+        .route("/investment/neraca", get(routes::investment::get_neraca))
         .route(
             "/investment/check_grade_saham",
             get(routes::investment::check_grade_saham),

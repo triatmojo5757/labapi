@@ -49,6 +49,30 @@ pub struct DigiflazzProductQuery {
     pub brand: Option<String>,
 }
 
+#[derive(Deserialize)]
+pub struct AddTokenPlnReq {
+    pub akun: String,
+    pub token: String,
+    pub nama_customer: String,
+    pub user_id: Uuid,
+    pub pascabayar: Option<bool>,
+}
+
+#[derive(Deserialize)]
+pub struct GetTokenPlnQuery {
+    pub user_id: Uuid,
+}
+
+#[derive(Serialize, sqlx::FromRow)]
+pub struct TokenPlnRes {
+    pub akun: String,
+    pub token: String,
+    pub nama_customer: String,
+    pub user_id: Uuid,
+    pub pascabayar: Option<bool>,
+    pub created_at: Option<NaiveDateTime>,
+}
+
 #[derive(Serialize)]
 struct DigiflazzSaldoRequest<'a> {
     cmd: &'static str,
@@ -255,6 +279,65 @@ pub async fn list_digiflazz_products(
     }
 
     Ok(Json(items))
+}
+
+pub async fn add_token_pln(
+    State(state): State<SharedState>,
+    Extension(_claims): Extension<Claims>,
+    Json(req): Json<AddTokenPlnReq>,
+) -> ApiResult<Json<Vec<TokenPlnRes>>> {
+    if req.akun.trim().is_empty() {
+        return Err(ApiError::BadRequest("akun is required".into()).into());
+    }
+    if req.token.trim().is_empty() {
+        return Err(ApiError::BadRequest("token is required".into()).into());
+    }
+    if req.nama_customer.trim().is_empty() {
+        return Err(ApiError::BadRequest("nama_customer is required".into()).into());
+    }
+    let rows = sqlx::query_as::<_, TokenPlnRes>(
+        r#"
+        SELECT akun, token, nama_customer, user_id, pascabayar, created_at
+        FROM insert_and_get_tokens_by_user(
+            $1::varchar,
+            $2::varchar,
+            $3::varchar,
+            $4::uuid,
+            $5::boolean
+        )
+        "#,
+    )
+    .bind(req.akun.trim())
+    .bind(req.token.trim())
+    .bind(req.nama_customer.trim())
+    .bind(req.user_id)
+    .bind(req.pascabayar.unwrap_or(false))
+    .fetch_all(&state.pool)
+    .await
+    .map_err(ApiError::from)?;
+
+    Ok(Json(rows))
+}
+
+pub async fn get_token_pln(
+    State(state): State<SharedState>,
+    Extension(_claims): Extension<Claims>,
+    Query(params): Query<GetTokenPlnQuery>,
+) -> ApiResult<Json<Vec<TokenPlnRes>>> {
+    let rows = sqlx::query_as::<_, TokenPlnRes>(
+        r#"
+        SELECT akun, token, nama_customer, user_id, pascabayar, created_at
+        FROM token_pln
+        WHERE user_id = $1::uuid
+        ORDER BY created_at DESC
+        "#,
+    )
+    .bind(params.user_id)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(ApiError::from)?;
+
+    Ok(Json(rows))
 }
 
 pub async fn cek_saldo(
