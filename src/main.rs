@@ -27,6 +27,7 @@ mod routes {
     pub mod admin;
     pub mod auth;
     pub mod cash;
+    pub mod disbursment;
     pub mod digiflaz;
     pub mod investment;
     pub mod journals;
@@ -230,6 +231,15 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/notifications/send",
             post(routes::notifications::send_notification),
+        )
+        .route(
+            "/disbursment/bank-accounts",
+            post(routes::disbursment::create_bank_account)
+                .get(routes::disbursment::list_bank_accounts),
+        )
+        .route(
+            "/disbursment/bank-accounts/selected",
+            get(routes::disbursment::get_selected_bank_account),
         )
         .layer(from_fn_with_state(
             state.clone(),

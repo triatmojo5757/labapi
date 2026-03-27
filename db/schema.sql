@@ -256,7 +256,7 @@ ALTER FUNCTION public.lab_fun_journal_guard() OWNER TO postgres;
 CREATE FUNCTION public.lab_fun_list_accounts_by_user(p_user_id uuid) RETURNS TABLE(id uuid, account_no text, saldo numeric, created_at timestamp with time zone, updated_at timestamp with time zone)
     LANGUAGE sql STABLE
     AS $$
-  SELECT a.id, a.account_no, a.saldo, a.created_at, a.updated_at
+SELECT a.id, a.account_no, a.saldo, a.created_at, a.updated_at
   FROM lab_accounts a
   WHERE a.user_id = p_user_id
   ORDER BY a.created_at ASC;
@@ -1276,6 +1276,124 @@ ALTER TABLE ONLY public.lab_profiles
 
 ALTER TABLE ONLY public.lab_refresh_tokens
     ADD CONSTRAINT lab_refresh_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.lab_users(id) ON DELETE CASCADE;
+
+--
+-- Name: bank_accounts; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.bank_accounts (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    bank_code character varying(20) NOT NULL,
+    account_number character varying(50) NOT NULL,
+    account_name character varying(255),
+    is_validated boolean DEFAULT false,
+    is_selected boolean DEFAULT false,
+    last_validated_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+
+--
+-- Name: bank_accounts bank_accounts_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.bank_accounts
+    ADD CONSTRAINT bank_accounts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: bank_accounts bank_accounts_bank_code_account_number_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.bank_accounts
+    ADD CONSTRAINT bank_accounts_bank_code_account_number_key UNIQUE (bank_code, account_number);
+
+
+--
+-- Name: bank_accounts bank_accounts_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.bank_accounts
+    ADD CONSTRAINT bank_accounts_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.lab_users(id) ON DELETE CASCADE;
+
+--
+-- Name: lab_upsert_bank_account(uuid, character varying, character varying, character varying, boolean, boolean); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE OR REPLACE FUNCTION public.lab_upsert_bank_account(
+    p_user_id uuid,
+    p_bank_code character varying,
+    p_account_number character varying,
+    p_account_name character varying,
+    p_is_validated boolean,
+    p_is_selected boolean DEFAULT false
+) RETURNS uuid
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    v_id uuid;
+BEGIN
+    IF p_is_selected THEN
+        UPDATE bank_accounts
+        SET is_selected = FALSE
+        WHERE user_id = p_user_id;
+    END IF;
+
+    INSERT INTO bank_accounts (
+        user_id, bank_code, account_number, account_name, is_validated, is_selected, last_validated_at
+    )
+    VALUES (
+        p_user_id, p_bank_code, p_account_number, p_account_name, p_is_validated, p_is_selected, CURRENT_TIMESTAMP
+    )
+    ON CONFLICT (bank_code, account_number)
+    DO UPDATE SET
+        account_name = EXCLUDED.account_name,
+        is_validated = EXCLUDED.is_validated,
+        is_selected = EXCLUDED.is_selected,
+        last_validated_at = CURRENT_TIMESTAMP
+    RETURNING id INTO v_id;
+
+    RETURN v_id;
+END;
+$$;
+
+
+ALTER FUNCTION public.lab_upsert_bank_account(
+    p_user_id uuid,
+    p_bank_code character varying,
+    p_account_number character varying,
+    p_account_name character varying,
+    p_is_validated boolean,
+    p_is_selected boolean
+) OWNER TO postgres;
+
+
+--
+-- Name: lab_get_selected_bank_account(uuid); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE OR REPLACE FUNCTION public.lab_get_selected_bank_account(p_user_id uuid)
+RETURNS TABLE (
+    id uuid,
+    bank_code character varying,
+    account_number character varying,
+    account_name character varying
+)
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    RETURN QUERY
+    SELECT ba.id, ba.bank_code, ba.account_number, ba.account_name
+    FROM bank_accounts ba
+    WHERE ba.user_id = p_user_id
+      AND ba.is_selected = TRUE
+    LIMIT 1;
+END;
+$$;
+
+
+ALTER FUNCTION public.lab_get_selected_bank_account(p_user_id uuid) OWNER TO postgres;
 
 
 --
